@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '@/config/apiConfig';
-
+console.log('API_BASE_URL --->', API_BASE_URL);
 export type LoginPayload = {
   email: string;
   password: string;

@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getAccountType } from '@/store/session';
 
 type AccountGuardProps = PropsWithChildren<{
-  required: 'user' | 'delivery';
+  required: 'user' | 'delivery' | 'rider';
 }>;
 
 export default function AccountGuard({ required, children }: AccountGuardProps) {
@@ -21,7 +21,10 @@ export default function AccountGuard({ required, children }: AccountGuardProps) 
     }
 
     if (accountType !== required) {
-      const destination = accountType === 'delivery' ? '/delivery-search' : '(tabs)';
+      let destination = '(tabs)';
+      if (accountType === 'delivery' || accountType === 'rider') {
+        destination = '/delivery-search';
+      }
       router.replace(destination);
       setIsAllowed(false);
       return;

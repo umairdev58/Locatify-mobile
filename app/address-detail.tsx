@@ -8,12 +8,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
+  Text,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-import { Text } from '@/components/Themed';
 import { getAddressByCode } from '@/api/address';
 
 export default function AddressDetailScreen() {
@@ -74,88 +75,139 @@ export default function AddressDetailScreen() {
   );
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <View style={styles.screen}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Location Details</Text>
-        <Text style={styles.subtitle}>Tap confirm to keep going.</Text>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <FontAwesome name="chevron-left" size={20} color="#111827" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Location Details</Text>
+        <View style={styles.headerSpacer} />
       </View>
-      <View style={styles.mapPreview}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={StyleSheet.absoluteFillObject}
-          region={region}
-          toolbarEnabled={false}>
-          <Marker coordinate={{ latitude, longitude }} />
-        </MapView>
-      </View>
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Card name</Text>
-        <Text style={[styles.sectionValue, styles.code]}>{params.name ?? 'Untitled'}</Text>
-        <Text style={styles.sectionLabel}>Where</Text>
-        <Text style={styles.sectionValue}>{params.address ?? 'Unknown location'}</Text>
 
-        <Text style={styles.sectionLabel}>Coordinates</Text>
-        <Text style={styles.sectionValue}>
-          {params.lat ?? '0.000000'}, {params.lng ?? '0.000000'}
-        </Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Map Preview */}
+        <View style={styles.mapPreview}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={StyleSheet.absoluteFillObject}
+            region={region}
+            toolbarEnabled={false}>
+            <Marker coordinate={{ latitude, longitude }} />
+          </MapView>
+        </View>
 
-        <Text style={styles.sectionLabel}>Public code</Text>
-        <Text style={[styles.sectionValue, styles.code]}>{params.code ?? '------'}</Text>
-        {params.mode === 'delivery' && (
-          <Pressable
-            style={[styles.navigationButton, { backgroundColor: '#111827' }]}
-            onPress={() => {
-              const lat = Number(params.lat ?? 0);
-              const lng = Number(params.lng ?? 0);
-              const mapsUrl =
-                Platform.OS === 'ios'
-                  ? `maps://?saddr=Current%20Location&daddr=${lat},${lng}`
-                  : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-              Linking.openURL(mapsUrl);
-            }}>
-            <View style={styles.navIcon}>
-              <Text style={styles.navIconText}>➜</Text>
+        {/* Location Card */}
+        <View style={styles.locationCard}>
+          <View style={styles.locationCardHeader}>
+            <Text style={styles.locationCardTitle}>{params.name ?? 'Untitled'}</Text>
+            {params.mode === 'delivery' && (
+              <View style={styles.locationFoundBadge}>
+                <Text style={styles.locationFoundBadgeText}>LOCATION FOUND</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Delivery Address Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoSectionLabel}>DELIVERY ADDRESS</Text>
+            <View style={styles.infoSectionBox}>
+              <Text style={styles.infoSectionValue}>{params.address ?? 'Unknown location'}</Text>
             </View>
-            <Text style={[styles.directionText, { color: '#fff' }]}>Open navigation</Text>
-            <Text style={styles.navHint}>Show route</Text>
-          </Pressable>
-        )}
+          </View>
+
+          {/* GPS Coordinates Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoSectionLabel}>GPS COORDINATES</Text>
+            <View style={styles.infoSectionBox}>
+              <Text style={styles.coordinatesValue}>
+                {params.lat ? Number(params.lat).toFixed(4) : '0.0000'}, {params.lng ? Number(params.lng).toFixed(4) : '0.0000'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Reference Photos Section */}
           {displayedHouseImages.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>House photos</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
-                {displayedHouseImages.map((uri) => (
-                  <TouchableOpacity key={uri} onPress={() => setPreviewImage(uri)}>
-                    <Image key={uri} source={{ uri }} style={styles.houseImage} />
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionLabel}>
+                REFERENCE PHOTOS ({displayedHouseImages.length})
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.photosRow}
+                contentContainerStyle={styles.photosRowContent}>
+                {displayedHouseImages.map((uri, index) => (
+                  <TouchableOpacity 
+                    key={uri} 
+                    onPress={() => setPreviewImage(uri)}
+                    style={[styles.referencePhotoContainer, index === displayedHouseImages.length - 1 && { marginRight: 0 }]}>
+                    <Image source={{ uri }} style={styles.referencePhoto} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-          </>
-        )}
-      </View>
-      <View style={styles.footer}>
-        {params.mode !== 'delivery' && (
-          <Pressable
-            style={styles.confirmButton}
-            onPress={() =>
-              router.push({
-                pathname: '/add-address',
-                params: {
-                  address: params.address,
-                  lat: params.lat,
-                  lng: params.lng,
-                  cardName: params.name,
-                  addressId: params.addressId,
-                },
-              })
-            }>
-            <Text style={styles.confirmText}>Edit card</Text>
-          </Pressable>
-        )}
-        <Pressable style={[styles.confirmButton, styles.closeAction]} onPress={() => router.back()}>
-          <Text style={styles.confirmText}>Close</Text>
-        </Pressable>
-      </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          {params.mode === 'delivery' ? (
+            <View style={styles.actionButtonsRow}>
+              <Pressable
+                style={styles.viewMapButton}
+                onPress={() => {
+                  // Already viewing map, maybe scroll to top or do nothing
+                }}>
+                <Text style={styles.viewMapButtonText}>View Map</Text>
+              </Pressable>
+              <Pressable
+                style={styles.startNavigationButton}
+                onPress={() => {
+                  const lat = Number(params.lat ?? 0);
+                  const lng = Number(params.lng ?? 0);
+                  const mapsUrl =
+                    Platform.OS === 'ios'
+                      ? `maps://?saddr=Current%20Location&daddr=${lat},${lng}`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                  Linking.openURL(mapsUrl);
+                }}>
+                <Text style={styles.startNavigationButtonText}>Start Navigation</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.actionButtonsRow}>
+              <Pressable
+                style={styles.editButton}
+                onPress={() =>
+                  router.push({
+                    pathname: '/add-address',
+                    params: {
+                      address: params.address,
+                      lat: params.lat,
+                      lng: params.lng,
+                      cardName: params.name,
+                      addressId: params.addressId,
+                    },
+                  })
+                }>
+                <FontAwesome name="pencil" size={16} color="#3b82f6" style={{ marginRight: 8 }} />
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
+              <Pressable style={styles.closeButton} onPress={() => router.back()}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Tip Box for Delivery Mode */}
+          {params.mode === 'delivery' && (
+            <View style={styles.tipBox}>
+              <Text style={styles.tipText}>
+                Tip: Take screenshots of the photos for reference during delivery.
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
       <Modal visible={!!previewImage} transparent animationType="fade">
         <View style={styles.previewOverlay}>
           <TouchableOpacity style={styles.previewContainer} onPress={() => setPreviewImage(null)}>
@@ -166,125 +218,192 @@ export default function AddressDetailScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  screen: {
     flex: 1,
-    backgroundColor: '#0b1021',
-  },
-  content: {
-    padding: 24,
-    backgroundColor: '#0b1021',
+    backgroundColor: '#fff',
   },
   header: {
-    marginBottom: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  title: {
-    fontSize: 28,
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
-  subtitle: {
-    color: '#9ca3af',
-    marginTop: 6,
+  headerSpacer: {
+    width: 36,
   },
-  card: {
-    backgroundColor: '#11152b',
-    borderRadius: 28,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowOffset: { width: 0, height: 16 },
-    shadowRadius: 22,
-    elevation: 8,
+  scroll: {
     flex: 1,
   },
-  sectionLabel: {
-    fontSize: 11,
-    letterSpacing: 1,
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    marginTop: 16,
-  },
-  sectionValue: {
-    fontSize: 18,
-    color: '#fff',
-    marginTop: 6,
-  },
-  code: {
-    color: '#a5b4fc',
-  },
-  footer: {
-    marginTop: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  confirmButton: {
-    backgroundColor: '#5d5cff',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-  },
-  confirmText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  closeAction: {
-    backgroundColor: '#1f2937',
-  },
-  navigationButton: {
-    marginTop: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#5d5cff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  navIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#5d5cff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navIconText: {
-    color: '#5d5cff',
-    fontWeight: '700',
-  },
-  directionText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  navHint: {
-    color: '#94a3ff',
-    fontSize: 12,
+  content: {
+    padding: 20,
+    paddingBottom: 40,
   },
   mapPreview: {
-    height: 220,
-    borderRadius: 24,
+    height: 300,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginBottom: 24,
-    backgroundColor: '#0a0c1a',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  imageRow: {
-    marginTop: 12,
-  },
-  houseImage: {
-    width: 128,
-    height: 96,
+  locationCard: {
+    backgroundColor: '#f9fafb',
     borderRadius: 16,
+    padding: 20,
+  },
+  locationCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  locationCardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  locationFoundBadge: {
+    backgroundColor: '#f97316',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  locationFoundBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  infoSection: {
+    marginBottom: 20,
+  },
+  infoSectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  infoSectionBox: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  infoSectionValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  coordinatesValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3b82f6',
+  },
+  photosRow: {
+    marginTop: 8,
+  },
+  photosRowContent: {
+    paddingRight: 20,
+  },
+  referencePhotoContainer: {
     marginRight: 12,
+  },
+  referencePhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#e5e7eb',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  viewMapButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#f97316',
+    marginRight: 12,
+  },
+  viewMapButtonText: {
+    color: '#f97316',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  startNavigationButton: {
+    flex: 1,
+    backgroundColor: '#f97316',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  startNavigationButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  editButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginRight: 12,
+  },
+  editButtonText: {
+    color: '#3b82f6',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  closeButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  tipBox: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  tipText: {
+    fontSize: 13,
+    color: '#0369a1',
+    lineHeight: 18,
   },
   previewOverlay: {
     flex: 1,

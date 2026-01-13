@@ -1,7 +1,8 @@
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import AccountGuard from '@/components/AccountGuard';
 import { getAddressByCode } from '@/api/address';
@@ -60,84 +61,158 @@ export default function DeliverySearchScreen() {
 
   return (
     <AccountGuard required="delivery">
-      <View style={[styles.screen, { backgroundColor: colorScheme === 'dark' ? '#030712' : '#f4f5ff' }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Lookup address</Text>
-      <Text style={[styles.subtitle, { color: theme.tabIconDefault }]}>Enter the public code shared by the customer.</Text>
-      <View style={styles.searchRow}>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colorScheme === 'dark' ? '#0f162b' : '#fff',
-              borderColor: colorScheme === 'dark' ? '#1f2951' : '#ccd5ff',
-              color: theme.text,
-            },
-          ]}
-          placeholder="Public code"
-          value={code}
-          onChangeText={setCode}
-          autoCapitalize="characters"
-          placeholderTextColor={colorScheme === 'dark' ? '#94a3b8' : '#7185b2'}
-        />
-        <Pressable style={styles.searchButton} onPress={handleSearch} disabled={loading}>
-          <Text style={styles.searchButtonText}>{loading ? 'Searching…' : 'Search'}</Text>
-        </Pressable>
-      </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={[styles.mapContainer, { backgroundColor: colorScheme === 'dark' ? '#030712' : '#0b1021' }]}>
-        <MapView provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFillObject} region={region}>
-          {address && <Marker coordinate={address.location} />}
-        </MapView>
-      </View>
-      {address && (
-          <Pressable
-            style={[
-              styles.detailsCard,
-              { backgroundColor: colorScheme === 'dark' ? '#111327' : '#fff' },
-              { borderColor: colorScheme === 'dark' ? '#1f2951' : '#d2d6ff' },
-            ]}
-            onPress={() =>
-              router.push({
-                pathname: '/address-detail',
-                params: {
-                  address: address.fullTextAddress,
-                  lat: address.location.latitude.toString(),
-                  lng: address.location.longitude.toString(),
-                  code: address.publicCode,
-                  name: address.cardName,
-                  addressId: address._id,
-                  mode: 'delivery',
-                  houseImages: JSON.stringify(address.houseImages ?? []),
-                },
-              })
-            }>
-            <Text style={[styles.detailLabel, { color: theme.tabIconDefault }]}>Card</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{address.cardName}</Text>
-            <Text style={[styles.detailLabel, { color: theme.tabIconDefault }]}>Address</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{address.fullTextAddress}</Text>
-            <Text style={[styles.detailLabel, { color: theme.tabIconDefault }]}>Code</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{address.publicCode}</Text>
-            <Pressable
-              style={[
-                styles.navigationButton,
-                { backgroundColor: colorScheme === 'dark' ? '#1f2940' : '#0f172a' },
-              ]}
-              onPress={() => {
-                const { latitude, longitude } = address.location;
-                const mapsUrl =
-                  Platform.OS === 'ios'
-                    ? `maps://?saddr=Current%20Location&daddr=${latitude},${longitude}`
-                    : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-                Linking.openURL(mapsUrl);
-              }}>
-              <View style={styles.navIcon}>
-                <Text style={styles.navIconText}>➜</Text>
-              </View>
-              <Text style={[styles.directionText, { color: '#fff' }]}>Open navigation</Text>
-              <Text style={styles.navHint}>Maps</Text>
+      <View style={styles.screen}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Find Location</Text>
+          <View style={styles.headerIcons}>
+            <Pressable style={styles.headerIconButton} onPress={() => Alert.alert('Quick Actions', 'Quick actions coming soon')}>
+              <FontAwesome name="bolt" size={18} color="#6b7280" />
             </Pressable>
+            <Pressable style={styles.headerIconButton} onPress={() => Alert.alert('Settings', 'Settings coming soon')}>
+              <FontAwesome name="gear" size={18} color="#6b7280" />
+            </Pressable>
+            <Pressable style={styles.headerLogoutButton} onPress={() => router.replace('/login')}>
+              <FontAwesome name="sign-out" size={16} color="#ef4444" />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, address && styles.searchBarFilled]}>
+            <FontAwesome name="search" size={18} color={address ? "#f97316" : "#9ca3af"} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Enter address code (e.g., ADDR-ABC123)"
+              value={code}
+              onChangeText={setCode}
+              autoCapitalize="characters"
+              placeholderTextColor="#9ca3af"
+            />
+          </View>
+          <Pressable style={styles.searchButton} onPress={handleSearch} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.searchButtonText}>Search Location</Text>
+            )}
           </Pressable>
-      )}
+        </View>
+
+        {/* Content */}
+        {error ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconCircle}>
+              <FontAwesome name="search" size={48} color="#9ca3af" />
+            </View>
+            <Text style={styles.emptyTitle}>No Address Found</Text>
+            <Text style={styles.emptyText}>{error}</Text>
+          </View>
+        ) : !address ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconCircle}>
+              <FontAwesome name="search" size={48} color="#9ca3af" />
+            </View>
+            <Text style={styles.emptyTitle}>No Address Found</Text>
+            <Text style={styles.emptyText}>
+              Enter the delivery address code from your assignment to view location details and reference photos.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}>
+            {/* Location Details Card */}
+            <View style={styles.locationCard}>
+              <View style={styles.locationCardHeader}>
+                <Text style={styles.locationCardTitle}>{address.cardName || 'Location'}</Text>
+                <View style={styles.locationFoundBadge}>
+                  <Text style={styles.locationFoundBadgeText}>LOCATION FOUND</Text>
+                </View>
+              </View>
+
+              {/* Delivery Address Section */}
+              <View style={styles.infoSection}>
+                <Text style={styles.infoSectionLabel}>DELIVERY ADDRESS</Text>
+                <View style={styles.infoSectionBox}>
+                  <Text style={styles.infoSectionValue}>{address.fullTextAddress}</Text>
+                </View>
+              </View>
+
+              {/* GPS Coordinates Section */}
+              <View style={styles.infoSection}>
+                <Text style={styles.infoSectionLabel}>GPS COORDINATES</Text>
+                <View style={styles.infoSectionBox}>
+                  <Text style={styles.coordinatesValue}>
+                    {address.location.latitude.toFixed(4)}, {address.location.longitude.toFixed(4)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Reference Photos Section */}
+              {address.houseImages && address.houseImages.length > 0 && (
+                <View style={styles.infoSection}>
+                  <Text style={styles.infoSectionLabel}>
+                    REFERENCE PHOTOS ({address.houseImages.length})
+                  </Text>
+                  <View style={styles.photosRow}>
+                    {address.houseImages.slice(0, 2).map((imageUri, index) => (
+                      <Image
+                        key={`${imageUri}-${index}`}
+                        source={{ uri: imageUri }}
+                        style={[styles.referencePhoto, index === address.houseImages.slice(0, 2).length - 1 && { marginRight: 0 }]}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtonsRow}>
+                <Pressable
+                  style={styles.viewMapButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/address-detail',
+                      params: {
+                        address: address.fullTextAddress,
+                        lat: address.location.latitude.toString(),
+                        lng: address.location.longitude.toString(),
+                        code: address.publicCode,
+                        name: address.cardName,
+                        addressId: address._id,
+                        mode: 'delivery',
+                        houseImages: JSON.stringify(address.houseImages ?? []),
+                      },
+                    })
+                  }>
+                  <Text style={styles.viewMapButtonText}>View Map</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.startNavigationButton}
+                  onPress={() => {
+                    const { latitude, longitude } = address.location;
+                    const mapsUrl =
+                      Platform.OS === 'ios'
+                        ? `maps://?saddr=Current%20Location&daddr=${latitude},${longitude}`
+                        : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+                    Linking.openURL(mapsUrl);
+                  }}>
+                  <Text style={styles.startNavigationButtonText}>Start Navigation</Text>
+                </Pressable>
+              </View>
+
+              {/* Tip Box */}
+              <View style={styles.tipBox}>
+                <Text style={styles.tipText}>
+                  Tip: Take screenshots of the photos for reference during delivery.
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+        )}
       </View>
     </AccountGuard>
   );
@@ -146,128 +221,227 @@ export default function DeliverySearchScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#f4f5ff',
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  input: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#ccd5ff',
-    paddingHorizontal: 16,
-    marginRight: 8,
     backgroundColor: '#fff',
   },
-  searchButton: {
-    backgroundColor: '#5d5cff',
-    borderRadius: 16,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  headerLogoutButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    height: 48,
+    marginBottom: 12,
+  },
+  searchBarFilled: {
+    borderColor: '#f97316',
+    borderWidth: 2,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  searchButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   searchButtonText: {
     color: '#fff',
+    fontSize: 15,
     fontWeight: '600',
   },
-  error: {
-    color: '#dc2626',
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  emptyIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  locationCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 8,
+  },
+  locationCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  locationCardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  locationFoundBadge: {
+    backgroundColor: '#f97316',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  locationFoundBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  infoSection: {
+    marginBottom: 20,
+  },
+  infoSectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 8,
   },
-  mapContainer: {
-    height: 260,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#0b1021',
-    marginVertical: 12,
-  },
-  detailsCard: {
+  infoSectionBox: {
     backgroundColor: '#fff',
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 16,
-    elevation: 5,
-    paddingBottom: 22,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  detailLabel: {
-    fontSize: 11,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: '#6b7280',
-    marginTop: 12,
-  },
-  detailValue: {
+  infoSectionValue: {
     fontSize: 16,
+    fontWeight: '700',
     color: '#111827',
-    marginTop: 4,
   },
-  directionButton: {
-    marginTop: 16,
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  coordinatesValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3b82f6',
+  },
+  photosRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#5d5cff',
+    marginTop: 8,
   },
-  directionText: {
-    color: '#fff',
-    fontWeight: '600',
+  referencePhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#e5e7eb',
+    marginRight: 12,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  viewMapButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#f97316',
+    marginRight: 12,
+  },
+  viewMapButtonText: {
+    color: '#f97316',
     fontSize: 15,
+    fontWeight: '600',
   },
-  directionTag: {
-    backgroundColor: '#5d5cff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  directionTagText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  navigationButton: {
-    marginTop: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#5d5cff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  navIcon: {
-    width: 32,
-    height: 32,
+  startNavigationButton: {
+    flex: 1,
+    backgroundColor: '#f97316',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#5d5cff',
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  navIconText: {
-    color: '#5d5cff',
-    fontWeight: '700',
+  startNavigationButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
-  navHint: {
-    color: '#94a3ff',
-    fontSize: 12,
+  tipBox: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  tipText: {
+    fontSize: 13,
+    color: '#0369a1',
+    lineHeight: 18,
   },
 });

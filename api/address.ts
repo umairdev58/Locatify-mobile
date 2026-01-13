@@ -124,3 +124,24 @@ export async function updateAddress(addressId: string, payload: SaveAddressPaylo
   const mergedPayload = { ...payload, addressId };
   return sendJsonPayload(`${API_BASE_URL}/address/update`, 'PUT', mergedPayload, token, 'update address');
 }
+
+export async function deleteAddress(addressId: string, token?: string): Promise<void> {
+  const authToken = requireToken(token);
+  try {
+    const response = await fetch(`${API_BASE_URL}/address/${addressId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.message ?? 'Unable to delete address');
+    }
+  } catch (error) {
+    console.error('Address API DELETE failed', error);
+    const message = error instanceof Error ? error.message : 'Network request failed';
+    throw new Error(`Network request failed while deleting address: ${message}`);
+  }
+}

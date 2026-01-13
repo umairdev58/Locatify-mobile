@@ -7,14 +7,19 @@ import {
   useColorScheme,
   View,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
-import { getMyAddresses, AddressResponse } from '@/api/address';
+import { useToast } from '@/components/ToastProvider';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import AddressCardSkeleton from '@/components/AddressCardSkeleton';
+import { getMyAddresses, AddressResponse, deleteAddress } from '@/api/address';
 
 type Props = {};
 
@@ -22,9 +27,12 @@ export default function TabOneScreen({}: Props) {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const { showToast } = useToast();
   const [addresses, setAddresses] = useState<AddressResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<AddressResponse | null>(null);
 
   const fetchAddress = useCallback(() => {
     let canceled = false;
@@ -58,58 +66,164 @@ export default function TabOneScreen({}: Props) {
     router.push('/add-address');
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Saved location card</Text>
-        <Text style={[styles.caption, { color: theme.tabIconDefault }]}>
-          Keep your favorite delivery spot accessible.
-        </Text>
-      </View>
+  const handleCopyCode = async (code: string) => {
+    await Clipboard.setStringAsync(code);
+    Alert.alert('Copied!', 'Address code copied to clipboard');
+  };
 
+  const handleEdit = (item: AddressResponse) => {
+    router.push({
+      pathname: '/add-address',
+      params: {
+        address: item.fullTextAddress,
+        lat: item.location.latitude.toString(),
+        lng: item.location.longitude.toString(),
+        cardName: item.cardName,
+        addressId: item._id,
+      },
+    });
+  };
+
+  const handleShare = async (item: AddressResponse) => {
+    const shareText = `${item.cardName}\n${item.fullTextAddress}\nCode: ${item.publicCode}`;
+    await Clipboard.setStringAsync(shareText);
+    Alert.alert('Copied!', 'Location details copied to clipboard');
+  };
+
+  const handleDelete = (item: AddressResponse) => {
+    setAddressToDelete(item);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!addressToDelete) return;
+    
+    setDeleteModalVisible(false);
+    try {
+      await deleteAddress(addressToDelete._id);
+      fetchAddress();
+      showToast('Address deleted successfully!', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to delete address';
+      showToast(message, 'error');
+    } finally {
+      setAddressToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalVisible(false);
+    setAddressToDelete(null);
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: '#f5f5f5' }]}>
       {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color={theme.tint} />
-        </View>
+        <FlatList
+          data={[1, 2, 3]}
+          keyExtractor={(item) => item.toString()}
+          renderItem={() => <AddressCardSkeleton />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        />
       ) : addresses.length ? (
         <FlatList
           data={addresses}
           keyExtractor={(item) => item._id}
           showsVerticalScrollIndicator={false}
           style={styles.list}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() =>
-                router.push({
-                pathname: '/address-detail',
-                params: {
-                  address: item.fullTextAddress,
-                  lat: item.location.latitude.toString(),
-                  lng: item.location.longitude.toString(),
-                  code: item.publicCode,
-                  name: item.cardName,
-                  addressId: item._id,
-                      mode: 'user',
-                      houseImages: JSON.stringify(item.houseImages ?? []),
-                },
-                })
-              }
-              style={[
-                styles.addressCard,
-                {
-                  backgroundColor: colorScheme === 'dark' ? '#0f172a' : '#fff',
-                  shadowOpacity: colorScheme === 'dark' ? 0.35 : 0.25,
-                  elevation: colorScheme === 'dark' ? 8 : 5,
-                },
-              ]}>
-            <Text style={styles.cardName}>{item.cardName || 'Location card'}</Text>
-            <Text style={styles.addressLabel}>{item.fullTextAddress}</Text>
-              <Text style={[styles.addressDescription, { color: theme.tabIconDefault }]}>
-                Lat {item.location.latitude.toFixed(5)} · Lng {item.location.longitude.toFixed(5)}
-              </Text>
-              <Text style={[styles.publicCode, { color: theme.tint }]}>Code: {item.publicCode}</Text>
+          renderItem={({ item }) => {
+            const bannerImage = item.houseImages?.[0] || null;
+            const referencePhotos = item.houseImages?.slice(0, 2) || [];
+            
+            return (
+              <View style={styles.addressCard}>
+                {/* Banner Image with Overlay */}
+                <View style={styles.bannerContainer}>
+                  {bannerImage ? (
+                    <Image source={{ uri: bannerImage }} style={styles.bannerImage} />
+                  ) : (
+                    <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
+                      <FontAwesome name="home" size={40} color="#9ca3af" />
+                    </View>
+                  )}
+                  <View style={styles.bannerOverlay}>
+                    <Text style={styles.bannerLocationName}>{item.cardName || 'Home'}</Text>
+                    <View style={styles.bannerAddressRow}>
+                      <FontAwesome name="map-marker" size={12} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.bannerAddress}>{item.fullTextAddress}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* ADDRESS CODE Section */}
+                <View style={styles.riderCodeSection}>
+                  <Text style={styles.sectionLabel}>ADDRESS CODE</Text>
+                  <View style={styles.riderCodeRow}>
+                    <Text style={styles.riderCodeText}>{item.publicCode}</Text>
+                    <Pressable
+                      onPress={() => handleCopyCode(item.publicCode)}
+                      style={styles.copyButton}>
+                      <FontAwesome name="copy" size={16} color="#3b82f6" />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* COORDINATES Section */}
+                <View style={styles.coordinatesSection}>
+                  <Text style={styles.sectionLabel}>COORDINATES</Text>
+                  <Text style={styles.coordinatesText}>
+                    {item.location.latitude.toFixed(4)}, {item.location.longitude.toFixed(4)}
+                  </Text>
+                </View>
+
+                {/* REFERENCE PHOTOS Section */}
+                {referencePhotos.length > 0 && (
+                  <View style={styles.referencePhotosSection}>
+                    <Text style={styles.sectionLabel}>
+                      REFERENCE PHOTOS ({referencePhotos.length})
+                    </Text>
+                    <View style={styles.photosRow}>
+                      {referencePhotos.map((photo, index) => (
+                        <Image
+                          key={`${photo}-${index}`}
+                          source={{ uri: photo }}
+                          style={styles.referencePhoto}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={styles.actionButtons}>
+                  <Pressable
+                    style={[styles.actionButton, styles.editButton]}
+                    onPress={() => handleEdit(item)}>
+                    <FontAwesome name="pencil" size={16} color="#3b82f6" style={{ marginRight: 8 }} />
+                    <Text style={[styles.actionButtonText, styles.editButtonText]}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.shareButton]}
+                    onPress={() => handleShare(item)}>
+                    <FontAwesome name="share" size={16} color="#06b6d4" style={{ marginRight: 8 }} />
+                    <Text style={[styles.actionButtonText, styles.shareButtonText]}>Share</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.deleteButton, { marginRight: 0 }]}
+                    onPress={() => handleDelete(item)}>
+                    <FontAwesome name="trash" size={16} color="#ef4444" style={{ marginRight: 8 }} />
+                    <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }}
+          ListFooterComponent={
+            <Pressable style={styles.addAddressButton} onPress={handleAddAddress}>
+              <Text style={styles.addAddressButtonText}>Add Address</Text>
             </Pressable>
-          )}
+          }
         />
       ) : (
         <Pressable
@@ -137,11 +251,19 @@ export default function TabOneScreen({}: Props) {
       )}
 
       {status ? (
-        <Text style={[styles.statusText, { color: theme.tabIconDefault }]}>{status}</Text>
+        <Text style={styles.statusText}>{status}</Text>
       ) : null}
-      <TouchableOpacity style={styles.fab} onPress={handleAddAddress} activeOpacity={0.8}>
-        <Text style={styles.fabText}>Add location</Text>
-      </TouchableOpacity>
+
+      <ConfirmationModal
+        visible={deleteModalVisible}
+        title="Delete Address"
+        message={`Are you sure you want to delete "${addressToDelete?.cardName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonStyle="destructive"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </View>
   );
 }
@@ -149,18 +271,8 @@ export default function TabOneScreen({}: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  caption: {
-    fontSize: 15,
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
   loader: {
     flex: 1,
@@ -193,60 +305,162 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addressCard: {
-    borderRadius: 32,
-    padding: 24,
-    backgroundColor: '#0f172a',
-    marginBottom: 16,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 15 },
-    shadowRadius: 25,
-    elevation: 5,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
-  addressLabel: {
-    fontSize: 20,
+  bannerContainer: {
+    width: '100%',
+    height: 200,
+    position: 'relative',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  bannerPlaceholder: {
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  bannerLocationName: {
+    fontSize: 24,
     fontWeight: '700',
+    color: '#fff',
     marginBottom: 4,
-    color: '#f8fafc',
   },
-  addressDescription: {
-    fontSize: 15,
-    marginBottom: 10,
-    color: '#c7d2fe',
+  bannerAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  publicCode: {
-    fontSize: 13,
-    letterSpacing: 0.6,
-    color: '#a5b4fc',
+  bannerAddress: {
+    fontSize: 14,
+    color: '#fff',
+    flex: 1,
   },
-  cardName: {
-    fontSize: 16,
+  riderCodeSection: {
+    backgroundColor: '#e0f2fe',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  coordinatesSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  referencePhotosSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3b82f6',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    color: '#94a3ff',
-    marginBottom: 6,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  riderCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  riderCodeText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#3b82f6',
+    flex: 1,
+  },
+  copyButton: {
+    padding: 8,
+  },
+  coordinatesText: {
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  photosRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  referencePhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#e5e7eb',
+    marginRight: 12,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    padding: 16,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  editButton: {
+    backgroundColor: '#e0f2fe',
+  },
+  shareButton: {
+    backgroundColor: '#cffafe',
+  },
+  deleteButton: {
+    backgroundColor: '#fee2e2',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editButtonText: {
+    color: '#3b82f6',
+  },
+  shareButtonText: {
+    color: '#06b6d4',
+  },
+  deleteButtonText: {
+    color: '#ef4444',
   },
   statusText: {
     marginTop: 12,
     fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
   },
-  fab: {
-    position: 'absolute',
-    right: 24,
-    bottom: 40,
-    backgroundColor: '#5d5cff',
-    paddingHorizontal: 20,
+  addAddressButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 999,
-    shadowColor: '#5d5cff',
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 18,
-    elevation: 6,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 20,
   },
-  fabText: {
+  addAddressButtonText: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
