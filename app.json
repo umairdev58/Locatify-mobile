@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.locatify.app",
       "infoPlist": {
         "CFBundleDisplayName": "Locatify",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["comgooglemaps", "maps", "googlechromes"]
       }
     },
     "android": {

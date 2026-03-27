@@ -1,4 +1,4 @@
-import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator, ScrollView, Image } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AccountGuard from '@/components/AccountGuard';
 import { getAddressByCode } from '@/api/address';
+import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
 export default function DeliverySearchScreen() {
   const insets = useSafeAreaInsets();
@@ -182,11 +183,7 @@ export default function DeliverySearchScreen() {
                   style={styles.startNavigationButton}
                   onPress={() => {
                     const { latitude, longitude } = address.location;
-                    const mapsUrl =
-                      Platform.OS === 'ios'
-                        ? `maps://?saddr=Current%20Location&daddr=${latitude},${longitude}`
-                        : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-                    Linking.openURL(mapsUrl);
+                    openNavigationMaps(latitude, longitude);
                   }}>
                   <Text style={styles.startNavigationButtonText}>Start Navigation</Text>
                 </Pressable>

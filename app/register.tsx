@@ -196,6 +196,11 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const headline =
+    accountType === 'delivery'
+      ? 'Create your delivery rider account'
+      : 'Start saving beautiful address cards';
+
   const handleRegister = async () => {
     if (!name || !email || !password) {
       setErrorMessage('Complete every field.');
@@ -230,7 +235,7 @@ export default function RegisterScreen() {
             <FontAwesome name="chevron-left" size={20} color="#111827" />
           </Pressable>
 
-          <Text style={styles.title}>Start saving beautiful address cards</Text>
+          <Text style={styles.title}>{headline}</Text>
 
           {/* Form Fields */}
           <View style={styles.form}>

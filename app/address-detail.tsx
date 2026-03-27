@@ -1,8 +1,6 @@
 import {
   Image,
-  Linking,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +15,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { getAddressByCode } from '@/api/address';
 import EmbeddedMapPreview from '@/components/EmbeddedMapPreview';
+import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
 export default function AddressDetailScreen() {
   const router = useRouter();
@@ -188,11 +187,7 @@ export default function AddressDetailScreen() {
                 onPress={() => {
                   const lat = Number(params.lat ?? 0);
                   const lng = Number(params.lng ?? 0);
-                  const mapsUrl =
-                    Platform.OS === 'ios'
-                      ? `maps://?saddr=Current%20Location&daddr=${lat},${lng}`
-                      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                  Linking.openURL(mapsUrl);
+                  openNavigationMaps(lat, lng);
                 }}>
                 <Text style={styles.startNavigationButtonText}>Start Navigation</Text>
               </Pressable>

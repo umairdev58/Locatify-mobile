@@ -1,11 +1,11 @@
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { PropsWithChildren, useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { getAccountType } from '@/store/session';
 
 type AccountGuardProps = PropsWithChildren<{
-  required: 'user' | 'delivery' | 'rider';
+  required: 'user' | 'delivery';
 }>;
 
 export default function AccountGuard({ required, children }: AccountGuardProps) {
@@ -22,14 +22,12 @@ export default function AccountGuard({ required, children }: AccountGuardProps) 
 
     const allowed =
       required === 'delivery'
-        ? accountType === 'delivery' || accountType === 'rider'
+        ? accountType === 'delivery'
         : accountType === required;
 
     if (!allowed) {
-      let destination: string = '/(tabs)';
-      if (accountType === 'delivery' || accountType === 'rider') {
-        destination = '/delivery-search';
-      }
+      const destination: Href =
+        accountType === 'delivery' ? '/delivery-search' : '/(tabs)';
       router.replace(destination);
       setIsAllowed(false);
       return;

@@ -7,8 +7,6 @@ import {
   useColorScheme,
   View,
   ScrollView,
-  Linking,
-  Platform,
 } from 'react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,6 +20,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import PlaceCardSkeleton from '@/components/PlaceCardSkeleton';
 import { getMyPlaces, PlaceResponse, deletePlace } from '@/api/place';
 import { useTabSearch } from '@/components/TabSearchContext';
+import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
 type Props = {};
 
@@ -115,11 +114,7 @@ export default function TabTwoScreen({}: Props) {
   const handleNavigateToMaps = (item: PlaceResponse, e: any) => {
     e.stopPropagation();
     const { latitude, longitude } = item.location;
-    const mapsUrl =
-      Platform.OS === 'ios'
-        ? `maps://?saddr=Current%20Location&daddr=${latitude},${longitude}`
-        : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-    Linking.openURL(mapsUrl);
+    openNavigationMaps(latitude, longitude);
   };
 
   const handleDelete = (item: PlaceResponse) => {

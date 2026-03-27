@@ -1,16 +1,9 @@
-import {
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  Text,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import EmbeddedMapPreview from '@/components/EmbeddedMapPreview';
+import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
 export default function PlaceDetailScreen() {
   const router = useRouter();
@@ -25,11 +18,7 @@ export default function PlaceDetailScreen() {
   const longitude = Number(params.lng) || 74.3587;
 
   const handleNavigate = () => {
-    const mapsUrl =
-      Platform.OS === 'ios'
-        ? `maps://?saddr=Current%20Location&daddr=${latitude},${longitude}`
-        : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-    Linking.openURL(mapsUrl);
+    openNavigationMaps(latitude, longitude);
   };
 
   return (

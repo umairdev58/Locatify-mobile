@@ -4,7 +4,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 const roles = [
   {
-    key: 'user',
+    key: 'user' as const,
     title: "I'm a User",
     description: 'Save addresses with beautiful cards & photos.',
     accent: '#eff6ff',
@@ -12,47 +12,28 @@ const roles = [
     iconColor: '#2563eb',
   },
   {
-    key: 'delivery',
+    key: 'delivery' as const,
     title: "I'm a Delivery Rider",
-    description: 'Sign up with phone number and OTP verification.',
+    description: 'Sign up with email and password to find addresses by code.',
     accent: '#eff6ff',
     icon: 'compass',
     iconColor: '#3b82f6',
-    isOTP: true,
-  },
-  {
-    key: 'rider',
-    title: "I'm a Rider (OTP Login)",
-    description: 'Quick login with phone number and OTP verification.',
-    accent: '#eff6ff',
-    icon: 'mobile-phone',
-    iconColor: '#3b82f6',
-    isOTP: true,
   },
 ];
 
 export default function RegisterSelectScreen() {
   const router = useRouter();
 
-  const handleSelect = (accountType: 'user' | 'delivery' | 'rider') => {
-    if (accountType === 'rider' || accountType === 'delivery') {
-      // Both rider and delivery use OTP verification for signup
-      router.push({
-        pathname: '/rider-login',
-        params: { mode: 'signup', accountType },
-      });
-    } else {
-      // Only regular users use email/password registration
-      router.replace({
-        pathname: '/register',
-        params: { accountType },
-      });
-    }
+  const handleSelect = (accountType: 'user' | 'delivery') => {
+    router.replace({
+      pathname: '/register',
+      params: { accountType },
+    });
   };
 
   return (
     <View style={styles.screen}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
@@ -70,12 +51,8 @@ export default function RegisterSelectScreen() {
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>{role.title}</Text>
                   <Text style={styles.optionDescription}>{role.description}</Text>
-                  <Pressable 
-                    style={styles.ctaButton}
-                    onPress={() => handleSelect(role.key as 'user' | 'delivery' | 'rider')}>
-                    <Text style={[styles.cta, (role as any).isOTP && styles.ctaOTP]}>
-                      {(role as any).isOTP ? (role.key === 'delivery' ? 'Sign Up with OTP →' : 'Login with OTP →') : 'Get Started →'}
-                    </Text>
+                  <Pressable style={styles.ctaButton} onPress={() => handleSelect(role.key)}>
+                    <Text style={styles.cta}>Get Started →</Text>
                   </Pressable>
                 </View>
               </View>
@@ -174,9 +151,6 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '700',
   },
-  ctaOTP: {
-    color: '#2563eb',
-  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -194,4 +168,3 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
-
