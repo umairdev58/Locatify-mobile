@@ -4,10 +4,15 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { ToastProvider } from '@/components/ToastProvider';
+
+/** Must match app.json `splash.backgroundColor` and expo-splash-screen plugin */
+const SPLASH_BACKGROUND = '#c5d8e8';
+const SPLASH_LOGO_DISPLAY_SIZE = 260;
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -15,12 +20,14 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: 'login',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+if (Platform.OS === 'ios') {
+  SplashScreen.setOptions({ fade: true, duration: 380 });
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -40,11 +47,34 @@ export default function RootLayout() {
   }, [loaded]);
 
   if (!loaded) {
-    return null;
+    /* Same look as native splash: Expo Go (SDK 52+) only shows app icon natively, so we paint our logo here once JS runs. */
+    return (
+      <View style={splashStyles.container}>
+        <Image
+          source={require('../assets/images/splash-icon.png')}
+          style={splashStyles.logo}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
   }
 
   return <RootLayoutNav />;
 }
+
+const splashStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: SPLASH_BACKGROUND,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: SPLASH_LOGO_DISPLAY_SIZE,
+    height: SPLASH_LOGO_DISPLAY_SIZE,
+  },
+});
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -52,11 +82,9 @@ function RootLayoutNav() {
   return (
     <ToastProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="register" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack
+          screenOptions={{ headerShown: false }}
+          initialRouteName="login">
         </Stack>
       </ThemeProvider>
     </ToastProvider>

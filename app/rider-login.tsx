@@ -13,25 +13,19 @@ import {
 import { useState } from 'react';
 
 import { Text } from '@/components/Themed';
-import { useColorScheme } from '@/components/useColorScheme';
-import Colors from '@/constants/Colors';
 import { requestOTP } from '@/api/rider';
 
 export default function RiderLoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string; accountType?: string }>();
-  const mode = params.mode || 'login'; // 'signup' or 'login'
+  const mode = params.mode || 'login';
   const accountType = params.accountType || 'rider';
   const isSignup = mode === 'signup';
-  
+
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
-  const colorScheme = useColorScheme() ?? 'light';
-  const themeColors = Colors[colorScheme];
-  const isDark = colorScheme === 'dark';
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const buttonTint = themeColors.tint;
   const hasError = !!errorMessage;
 
   const handleRequestOTP = async () => {
@@ -40,7 +34,6 @@ export default function RiderLoginScreen() {
       return;
     }
 
-    // Basic phone validation
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
       setErrorMessage('Please enter a valid phone number');
@@ -54,14 +47,13 @@ export default function RiderLoginScreen() {
     try {
       const response = await requestOTP({ phone: phone.trim() });
       setSuccessMessage(`OTP sent to ${response.phone}`);
-      
-      // Navigate to verify OTP screen after a short delay
+
       setTimeout(() => {
         router.push({
           pathname: '/rider-verify-otp',
           params: { phone: response.phone, mode, accountType },
         });
-      }, 1000);
+      }, 800);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to send OTP';
       setErrorMessage(message);
@@ -71,212 +63,226 @@ export default function RiderLoginScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={[styles.container, { backgroundColor: '#f6f6f8' }]}
-      keyboardShouldPersistTaps="handled">
-      <View style={styles.lightBackground} />
-      <View style={styles.lightBackgroundSmall} />
-      <View style={styles.cardWrapper}>
-        <Image source={require('../assets/images/icon.png')} style={styles.logo} />
-        <Text style={styles.brand}>Locator</Text>
-        <Text style={styles.subtitle}>
-          {isSignup ? 'Rider Sign Up' : 'Rider Login'}
-        </Text>
-        <Text style={styles.tagline}>
-          {isSignup 
-            ? 'Enter your phone number to create your account' 
-            : 'Enter your phone number to receive OTP'}
-        </Text>
+    <KeyboardAvoidingView
+      style={styles.page}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <View style={styles.heroContent}>
+            <View style={styles.brandRow}>
+              <View style={styles.logoWrap}>
+                <Image
+                  source={require('../assets/images/icon.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.appName}>Locatify</Text>
+                <Text style={styles.appTagline}>Save places. Share instantly.</Text>
+              </View>
+            </View>
 
-        <View style={styles.fieldWrapper}>
-          <Text style={styles.fieldLabel}>Phone Number</Text>
+            <Text style={styles.welcomeTitle}>{isSignup ? 'Rider sign up' : 'Rider login'}</Text>
+            <Text style={styles.welcomeSubtitle}>
+              {isSignup
+                ? 'Enter your phone number to create your delivery account.'
+                : 'Enter your phone number — we’ll send a one-time code.'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.form}>
+          <Text style={styles.label}>Phone number</Text>
           <TextInput
             value={phone}
             onChangeText={(text) => {
               setPhone(text);
               setErrorMessage('');
             }}
-            style={[styles.input, hasError && styles.inputError]}
+            style={[styles.input, hasError && styles.inputErrorBorder]}
             placeholder="03001234567"
             keyboardType="phone-pad"
-            placeholderTextColor="#c3c5d2"
+            placeholderTextColor="#9ca3af"
             maxLength={15}
             editable={!loading}
           />
-          <Text style={styles.helperText}>
-            Enter your Pakistani mobile number (e.g., 03001234567)
-          </Text>
-        </View>
+          <Text style={styles.helperText}>Pakistani mobile format (e.g. 03001234567)</Text>
 
-        {errorMessage ? (
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        ) : null}
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+          {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
 
-        {successMessage ? (
-          <Text style={styles.successText}>{successMessage}</Text>
-        ) : null}
+          <Pressable
+            style={[styles.continueButton, loading && styles.disabledButton]}
+            onPress={handleRequestOTP}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.continueText}>Send OTP</Text>
+            )}
+          </Pressable>
 
-        <Pressable
-          style={[styles.ctaButton, loading && styles.disabledButton]}
-          onPress={handleRequestOTP}
-          disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
+          {isSignup ? (
+            <Text style={styles.bottomText}>
+              Already have an account?{' '}
+              <Text
+                style={styles.bottomLink}
+                onPress={() =>
+                  router.replace({ pathname: '/rider-login', params: { mode: 'login', accountType } })
+                }>
+                Sign in
+              </Text>
+            </Text>
           ) : (
-            <Text style={styles.ctaText}>Send OTP</Text>
+            <Text style={styles.bottomText}>
+              Don’t have an account?{' '}
+              <Text style={styles.bottomLink} onPress={() => router.push('/register-select')}>
+                Sign up
+              </Text>
+            </Text>
           )}
-        </Pressable>
-
-        {isSignup ? (
-          <Text style={styles.noAccount}>
-            Already have an account?{' '}
-            <Text style={styles.signUp} onPress={() => router.push('/rider-login')}>
-              Sign In
-            </Text>
-          </Text>
-        ) : (
-          <Text style={styles.noAccount}>
-            Don't have an account?{' '}
-            <Text style={styles.signUp} onPress={() => router.push('register-select')}>
-              Sign Up
-            </Text>
-          </Text>
-        )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   container: {
-    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  hero: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginTop: 10,
+    marginBottom: 22,
+    backgroundColor: '#f5f7ff',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.10)',
+  },
+  heroContent: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  logoWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(17, 24, 39, 0.06)',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  lightBackground: {
-    position: 'absolute',
-    width: 320,
-    height: 220,
-    borderRadius: 120,
-    backgroundColor: '#f5f6fb',
-    top: -80,
-    right: -60,
-  },
-  lightBackgroundSmall: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#eef0f8',
-    bottom: -40,
-    left: -20,
-  },
-  cardWrapper: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    padding: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.08,
-    shadowRadius: 35,
-    elevation: 12,
-    alignItems: 'center',
+    marginRight: 12,
   },
   logo: {
-    width: 64,
-    height: 64,
-    marginBottom: 12,
+    width: 28,
+    height: 28,
   },
-  brand: {
-    fontSize: 28,
+  appName: {
+    fontSize: 20,
     fontWeight: '700',
+    color: '#1d4ed8',
+    letterSpacing: -0.2,
   },
-  subtitle: {
-    fontSize: 24,
+  appTagline: {
+    marginTop: 2,
+    color: '#64748b',
+    fontSize: 13,
     fontWeight: '600',
+  },
+  welcomeTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.4,
+  },
+  welcomeSubtitle: {
     marginTop: 8,
-  },
-  tagline: {
     fontSize: 15,
-    color: '#9aa2be',
-    marginBottom: 20,
+    color: '#475569',
+    fontWeight: '600',
   },
-  fieldWrapper: {
+  form: {
     width: '100%',
-    marginBottom: 18,
   },
-  fieldLabel: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: '#63697d',
-    marginBottom: 6,
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 10,
   },
   input: {
-    width: '100%',
-    borderRadius: 16,
-    height: 52,
-    paddingHorizontal: 20,
-    backgroundColor: '#f6f7fb',
-    fontSize: 16,
+    height: 54,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#ebecf2',
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    fontSize: 16,
+    color: '#111827',
   },
-  inputError: {
-    borderColor: '#b32621',
+  inputErrorBorder: {
+    borderColor: '#ef4444',
   },
   helperText: {
-    fontSize: 12,
-    color: '#9aa2be',
-    marginTop: 6,
+    marginTop: 8,
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
   errorText: {
-    color: '#b32621',
-    fontSize: 13,
+    marginTop: 12,
+    color: '#dc2626',
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 12,
-    width: '100%',
-    textAlign: 'center',
   },
   successText: {
-    color: '#2e7d32',
-    fontSize: 13,
+    marginTop: 12,
+    color: '#15803d',
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 12,
-    width: '100%',
-    textAlign: 'center',
   },
-  ctaButton: {
-    width: '100%',
-    backgroundColor: '#1f4ede',
-    borderRadius: 18,
-    paddingVertical: 16,
+  continueButton: {
+    height: 54,
+    borderRadius: 12,
+    backgroundColor: '#5b86d6',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-    shadowColor: '#1f4ede',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 6,
+    justifyContent: 'center',
+    marginTop: 22,
   },
-  ctaText: {
-    color: '#fff',
-    fontWeight: '600',
+  continueText: {
+    color: '#ffffff',
     fontSize: 16,
+    fontWeight: '700',
   },
   disabledButton: {
     opacity: 0.6,
   },
-  noAccount: {
-    color: '#6f738a',
+  bottomText: {
+    marginTop: 20,
+    textAlign: 'center',
+    color: '#9ca3af',
     fontSize: 14,
   },
-  signUp: {
-    color: '#1f4ede',
-    fontWeight: '600',
+  bottomLink: {
+    color: '#2f6fed',
+    fontWeight: '700',
   },
 });
-

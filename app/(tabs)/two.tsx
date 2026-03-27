@@ -10,9 +10,10 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
@@ -20,19 +21,38 @@ import { useToast } from '@/components/ToastProvider';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import PlaceCardSkeleton from '@/components/PlaceCardSkeleton';
 import { getMyPlaces, PlaceResponse, deletePlace } from '@/api/place';
+import { useTabSearch } from '@/components/TabSearchContext';
 
 type Props = {};
 
 export default function TabTwoScreen({}: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const { showToast } = useToast();
+  const { pinLocQuery } = useTabSearch();
   const [places, setPlaces] = useState<PlaceResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [placeToDelete, setPlaceToDelete] = useState<PlaceResponse | null>(null);
+
+  const normalizedQuery = pinLocQuery.trim().toLowerCase();
+  const filteredPlaces = useMemo(() => {
+    if (!normalizedQuery) return places;
+    return places.filter((p) => {
+      const haystack = [
+        p.name,
+        p.notes,
+        `${p.location.latitude.toFixed(4)},${p.location.longitude.toFixed(4)}`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [places, normalizedQuery]);
 
   const fetchPlaces = useCallback(() => {
     let canceled = false;
@@ -128,6 +148,18 @@ export default function TabTwoScreen({}: Props) {
     setPlaceToDelete(null);
   };
 
+  const fabBottom = 20 + insets.bottom;
+
+  const renderAddFab = () => (
+    <Pressable
+      style={[styles.fab, { bottom: fabBottom }]}
+      onPress={handleAddPlace}
+      accessibilityRole="button"
+      accessibilityLabel="Add place">
+      <FontAwesome name="plus" size={24} color="#ffffff" />
+    </Pressable>
+  );
+
   const renderItem = ({ item }: { item: PlaceResponse }) => {
     return (
       <View style={styles.placeCard}>
@@ -169,7 +201,7 @@ export default function TabTwoScreen({}: Props) {
             <Pressable
               style={styles.navigateButton}
               onPress={(e) => handleNavigateToMaps(item, e)}>
-              <FontAwesome name="paper-plane" size={16} color="#f97316" style={{ marginRight: 8 }} />
+              <FontAwesome name="paper-plane" size={16} color="#2563eb" style={{ marginRight: 8 }} />
               <Text style={styles.navigateButtonText}>Navigate</Text>
             </Pressable>
             <Pressable
@@ -194,9 +226,10 @@ export default function TabTwoScreen({}: Props) {
           data={[1, 2, 3]}
           keyExtractor={(item) => item.toString()}
           renderItem={() => <PlaceCardSkeleton />}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.listContentPadded}
           showsVerticalScrollIndicator={false}
         />
+        {renderAddFab()}
       </View>
     );
   }
@@ -207,10 +240,9 @@ export default function TabTwoScreen({}: Props) {
         <ScrollView contentContainerStyle={styles.emptyContainer}>
           <FontAwesome name="map-pin" size={64} color="#d1d5db" />
           <Text style={styles.emptyText}>{status}</Text>
-          <Pressable style={styles.addButton} onPress={handleAddPlace}>
-            <Text style={styles.addButtonText}>Add Address</Text>
-          </Pressable>
+          <Text style={styles.emptyHint}>Tap + to pin your first place.</Text>
         </ScrollView>
+        {renderAddFab()}
       </View>
     );
   }
@@ -218,25 +250,21 @@ export default function TabTwoScreen({}: Props) {
   return (
     <View style={styles.screen}>
       <FlatList
-        data={places}
+        data={filteredPlaces}
         renderItem={renderItem}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={styles.listContentPadded}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <FontAwesome name="map-pin" size={64} color="#d1d5db" />
-            <Text style={styles.emptyText}>No places saved yet.</Text>
-            <Pressable style={styles.addButton} onPress={handleAddPlace}>
-              <Text style={styles.addButtonText}>Add Address</Text>
-            </Pressable>
+            <Text style={styles.emptyText}>
+              {normalizedQuery ? 'No matches found.' : 'No places saved yet.'}
+            </Text>
+            <Text style={styles.emptyHint}>Tap + to add a place.</Text>
           </View>
         }
-        ListFooterComponent={
-          <Pressable style={styles.addButton} onPress={handleAddPlace}>
-            <Text style={styles.addButtonText}>Add Address</Text>
-          </Pressable>
-        }
       />
+      {renderAddFab()}
       <ConfirmationModal
         visible={deleteModalVisible}
         title="Delete Place"
@@ -254,17 +282,33 @@ export default function TabTwoScreen({}: Props) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#f1f5f9',
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 10,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#f1f5f9',
   },
-  listContent: {
+  listContentPadded: {
     padding: 20,
-    paddingBottom: 20,
+    paddingBottom: 88,
+    flexGrow: 1,
   },
   placeCard: {
     backgroundColor: '#fff',
@@ -278,7 +322,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardHeader: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#2563eb',
     padding: 20,
     paddingBottom: 16,
   },
@@ -306,38 +350,43 @@ const styles = StyleSheet.create({
   infoSectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#92400e',
+    color: '#1d4ed8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   notesBox: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
   notesText: {
     fontSize: 15,
-    color: '#92400e',
+    color: '#1e3a8a',
     lineHeight: 22,
   },
   coordinatesLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4b5563',
+    color: '#1d4ed8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   coordinatesBox: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
   coordinatesText: {
     fontSize: 15,
-    color: '#4b5563',
+    color: '#1e3a8a',
     fontFamily: 'monospace',
+    fontWeight: '700',
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -348,17 +397,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff7ed',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#f97316',
+    borderColor: '#3b82f6',
     marginRight: 12,
   },
   navigateButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#f97316',
+    color: '#2563eb',
   },
   removeButton: {
     flex: 1,
@@ -388,18 +437,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  addButton: {
-    marginTop: 24,
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
+  emptyHint: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
 });

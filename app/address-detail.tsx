@@ -10,17 +10,21 @@ import {
   View,
   Text,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { getAddressByCode } from '@/api/address';
+import EmbeddedMapPreview from '@/components/EmbeddedMapPreview';
 
 export default function AddressDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     address?: string;
+    landmark?: string;
+    notes?: string;
     lat?: string;
     lng?: string;
     code?: string;
@@ -31,12 +35,6 @@ export default function AddressDetailScreen() {
   }>();
   const latitude = Number(params.lat) || 31.5204;
   const longitude = Number(params.lng) || 74.3587;
-  const region: Region = {
-    latitude,
-    longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  };
 
   const houseImages = (() => {
     if (!params.houseImages) return [];
@@ -51,6 +49,8 @@ export default function AddressDetailScreen() {
     }
   })();
   const [remoteHouseImages, setRemoteHouseImages] = useState<string[]>(houseImages);
+  const [landmarkText, setLandmarkText] = useState(params.landmark ?? '');
+  const [notesText, setNotesText] = useState(params.notes ?? '');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,6 +60,8 @@ export default function AddressDetailScreen() {
       .then((data) => {
         if (cancelled) return;
         setRemoteHouseImages(data.houseImages ?? []);
+        if (typeof data.landmark === 'string') setLandmarkText(data.landmark);
+        if (typeof data.notes === 'string') setNotesText(data.notes);
       })
       .catch(() => {
         // ignore
@@ -74,11 +76,28 @@ export default function AddressDetailScreen() {
     [remoteHouseImages, houseImages],
   );
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    if (params.mode === 'delivery') {
+      router.replace('/delivery-search');
+      return;
+    }
+    router.replace('/(tabs)');
+  };
+
   return (
     <View style={styles.screen}>
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Pressable
+          onPress={handleBack}
+          style={styles.backButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <FontAwesome name="chevron-left" size={20} color="#111827" />
         </Pressable>
         <Text style={styles.headerTitle}>Location Details</Text>
@@ -88,13 +107,7 @@ export default function AddressDetailScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Map Preview */}
         <View style={styles.mapPreview}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={StyleSheet.absoluteFillObject}
-            region={region}
-            toolbarEnabled={false}>
-            <Marker coordinate={{ latitude, longitude }} />
-          </MapView>
+          <EmbeddedMapPreview latitude={latitude} longitude={longitude} />
         </View>
 
         {/* Location Card */}
@@ -115,6 +128,24 @@ export default function AddressDetailScreen() {
               <Text style={styles.infoSectionValue}>{params.address ?? 'Unknown location'}</Text>
             </View>
           </View>
+
+          {landmarkText.trim() ? (
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionLabel}>LANDMARK</Text>
+              <View style={styles.infoSectionBox}>
+                <Text style={styles.infoSectionValue}>{landmarkText.trim()}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {notesText.trim() ? (
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionLabel}>NOTES</Text>
+              <View style={styles.infoSectionBox}>
+                <Text style={styles.infoSectionValue}>{notesText.trim()}</Text>
+              </View>
+            </View>
+          ) : null}
 
           {/* GPS Coordinates Section */}
           <View style={styles.infoSection}>
@@ -153,14 +184,7 @@ export default function AddressDetailScreen() {
           {params.mode === 'delivery' ? (
             <View style={styles.actionButtonsRow}>
               <Pressable
-                style={styles.viewMapButton}
-                onPress={() => {
-                  // Already viewing map, maybe scroll to top or do nothing
-                }}>
-                <Text style={styles.viewMapButtonText}>View Map</Text>
-              </Pressable>
-              <Pressable
-                style={styles.startNavigationButton}
+                style={styles.startNavigationButtonFull}
                 onPress={() => {
                   const lat = Number(params.lat ?? 0);
                   const lng = Number(params.lng ?? 0);
@@ -182,10 +206,14 @@ export default function AddressDetailScreen() {
                     pathname: '/add-address',
                     params: {
                       address: params.address,
+                      landmark: landmarkText,
+                      notes: notesText,
                       lat: params.lat,
                       lng: params.lng,
                       cardName: params.name,
                       addressId: params.addressId,
+                      publicCode: params.code ?? '',
+                      houseImages: JSON.stringify(displayedHouseImages),
                     },
                   })
                 }>
@@ -232,7 +260,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -280,7 +307,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   locationFoundBadge: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -339,24 +366,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-  viewMapButton: {
+  startNavigationButtonFull: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#f97316',
-    marginRight: 12,
-  },
-  viewMapButtonText: {
-    color: '#f97316',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  startNavigationButton: {
-    flex: 1,
-    backgroundColor: '#f97316',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

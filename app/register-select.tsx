@@ -7,9 +7,9 @@ const roles = [
     key: 'user',
     title: "I'm a User",
     description: 'Save addresses with beautiful cards & photos.',
-    accent: '#fff7ed',
+    accent: '#eff6ff',
     icon: 'map-marker',
-    iconColor: '#f97316',
+    iconColor: '#2563eb',
   },
   {
     key: 'delivery',
@@ -171,11 +171,11 @@ const styles = StyleSheet.create({
   },
   cta: {
     fontSize: 15,
-    color: '#f97316',
+    color: '#2563eb',
     fontWeight: '700',
   },
   ctaOTP: {
-    color: '#3b82f6',
+    color: '#2563eb',
   },
   footer: {
     flexDirection: 'row',

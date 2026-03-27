@@ -1,6 +1,7 @@
 import { Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, Text } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +17,12 @@ import Colors from '@/constants/Colors';
 import { saveAddress, updateAddress } from '@/api/address';
 import type { ImageAsset } from '@/types/image';
 
+function parsePublicCodeParam(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (Array.isArray(value) && value[0] && String(value[0]).trim()) return String(value[0]).trim();
+  return null;
+}
+
 const steps = [
   { id: 1, title: 'Text Address', subtitle: 'House, landmark, and notes' },
   { id: 2, title: 'Map', subtitle: 'Pin drop and confirm' },
@@ -25,12 +32,18 @@ const steps = [
 
 export default function AddAddressScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     lat?: string;
     lng?: string;
     cardName?: string;
     address?: string;
+    landmark?: string;
+    notes?: string;
     addressId?: string;
+    publicCode?: string;
+    /** JSON array of image URL strings when opening edit flow */
+    houseImages?: string;
   }>();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -39,13 +52,14 @@ export default function AddAddressScreen() {
   const [currentStep, setCurrentStep] = useState(1);
   const [cardName, setCardName] = useState(params.cardName ?? '');
   const [house, setHouse] = useState('');
-  const [landmark, setLandmark] = useState('');
-  const [notes, setNotes] = useState('');
+  const [landmark, setLandmark] = useState(params.landmark ?? '');
+  const [notes, setNotes] = useState(params.notes ?? '');
   const [selectedCoords, setSelectedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [houseImages, setHouseImages] = useState<ImageAsset[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [publicCode, setPublicCode] = useState<string | null>(null);
+  const [cardNameError, setCardNameError] = useState<string | null>(null);
+  const [publicCode, setPublicCode] = useState<string | null>(() => parsePublicCodeParam(params.publicCode));
   const [previewCode] = useState(() => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = 'ADDR-';
@@ -54,9 +68,17 @@ export default function AddAddressScreen() {
     }
     return code;
   });
+  /** Avoid re-applying route images when other params change (would wipe newly picked photos). */
+  const appliedHouseImagesParam = useRef<string | undefined>(undefined);
   const inputBackground = isDark ? '#1c1f33' : '#f3f5ff';
 
   const goNext = () => {
+    if (currentStep === 1 && !cardName.trim()) {
+      setCardNameError('Enter a card name to continue.');
+      showToast('Enter a card name to continue.', 'error');
+      return;
+    }
+    setCardNameError(null);
     if (currentStep < steps.length) {
       setCurrentStep((prev) => prev + 1);
     }
@@ -66,6 +88,19 @@ export default function AddAddressScreen() {
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
     }
+  };
+
+  const goToStep = (stepId: number) => {
+    if (stepId === currentStep || stepId < 1 || stepId > steps.length) {
+      return;
+    }
+    if (stepId > currentStep && currentStep === 1 && !cardName.trim()) {
+      setCardNameError('Enter a card name to continue.');
+      showToast('Enter a card name to continue.', 'error');
+      return;
+    }
+    setCardNameError(null);
+    setCurrentStep(stepId);
   };
 
   useEffect(() => {
@@ -82,8 +117,47 @@ export default function AddAddressScreen() {
     if (params.address) {
       setHouse(params.address);
     }
-    // If editing, we could fetch the publicCode here, but for now we'll show a preview
-  }, [params.lat, params.lng, params.cardName, params.address]);
+    if (params.landmark !== undefined) {
+      setLandmark(params.landmark);
+    }
+    if (params.notes !== undefined) {
+      setNotes(params.notes);
+    }
+    const codeFromRoute = parsePublicCodeParam(params.publicCode);
+    if (codeFromRoute) {
+      setPublicCode(codeFromRoute);
+    }
+    if (
+      typeof params.houseImages === 'string' &&
+      params.houseImages !== appliedHouseImagesParam.current
+    ) {
+      appliedHouseImagesParam.current = params.houseImages;
+      try {
+        const parsed = JSON.parse(params.houseImages);
+        const urls = Array.isArray(parsed)
+          ? parsed.filter((u): u is string => typeof u === 'string' && u.length > 0)
+          : [];
+        setHouseImages(
+          urls.map((uri, i) => ({
+            uri,
+            name: `photo-${i}.jpg`,
+            type: 'image/jpeg',
+          })),
+        );
+      } catch {
+        // ignore invalid param
+      }
+    }
+  }, [
+    params.lat,
+    params.lng,
+    params.cardName,
+    params.address,
+    params.landmark,
+    params.notes,
+    params.publicCode,
+    params.houseImages,
+  ]);
 
   const isEditing = Boolean(params.addressId);
 
@@ -171,31 +245,45 @@ export default function AddAddressScreen() {
   };
 
   const handleSave = async () => {
-    if (!selectedCoords || !house) {
-      setSaveError('Provide address text and location before saving.');
+    const houseTrim = house.trim();
+    const landmarkTrim = landmark.trim();
+    const notesTrim = notes.trim();
+    if (!cardName.trim()) {
+      setSaveError('Add a card name before saving.');
+      showToast('Add a card name before saving.', 'error');
       return;
     }
+    if (!selectedCoords) {
+      setSaveError('Pick a location on the map before saving.');
+      return;
+    }
+    if (!houseTrim && !landmarkTrim && !notesTrim) {
+      setSaveError('Add a street address, landmark, or notes before saving.');
+      return;
+    }
+    const fullTextAddress = houseTrim || landmarkTrim || notesTrim;
     setSaving(true);
     setSaveError(null);
     try {
       let savedAddress;
       if (isEditing && params.addressId) {
         savedAddress = await updateAddress(params.addressId, {
-          fullTextAddress: house,
+          fullTextAddress,
           location: selectedCoords,
           cardName,
+          landmark: landmarkTrim,
+          notes: notesTrim,
           houseImages,
         });
       } else {
         savedAddress = await saveAddress({
-          fullTextAddress: house,
+          fullTextAddress,
           location: selectedCoords,
           cardName,
+          landmark: landmarkTrim,
+          notes: notesTrim,
           houseImages,
         });
-      }
-      if (savedAddress?.publicCode) {
-        setPublicCode(savedAddress.publicCode);
       }
       showToast(isEditing ? 'Address updated successfully!' : 'Address saved successfully!', 'success');
       // Small delay to show toast before navigation
@@ -215,42 +303,81 @@ export default function AddAddressScreen() {
     switch (currentStep) {
       case 1:
         return (
-          <>
-            <Text style={styles.fieldLabel}>Card name</Text>
-            <TextInput
-              value={cardName}
-              onChangeText={setCardName}
-              placeholder="Home, Work, etc."
-              placeholderTextColor="#9ca3af"
-              style={styles.input}
-            />
-            <Text style={styles.fieldLabel}>House / Street / Block (optional)</Text>
-            <TextInput
-              value={house}
-              onChangeText={setHouse}
-              placeholder="123 Main St, Block B"
-              placeholderTextColor="#9ca3af"
-              style={styles.input}
-            />
-            <Text style={styles.fieldLabel}>Landmarks (optional)</Text>
-            <TextInput
-              value={landmark}
-              onChangeText={setLandmark}
-              placeholder="Near the community center"
-              placeholderTextColor="#9ca3af"
-              style={styles.input}
-            />
-            <Text style={styles.fieldLabel}>Notes (optional)</Text>
-            <TextInput
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Label this card for drivers"
-              placeholderTextColor="#9ca3af"
-              multiline
-              numberOfLines={3}
-              style={[styles.input, styles.notesInput]}
-            />
-          </>
+          <View style={styles.step1Root}>
+            <View style={styles.step1Hint}>
+              <View style={styles.step1HintIcon}>
+                <FontAwesome name="info-circle" size={15} color="#2563eb" />
+              </View>
+              <Text style={styles.step1HintText}>
+                Name your card, then add any street details, landmarks, or notes that help someone find this place.
+              </Text>
+            </View>
+
+            <View style={styles.step1PrimaryBlock}>
+              <View style={styles.step1LabelRow}>
+                <FontAwesome name="bookmark" size={14} color="#2563eb" />
+                <Text style={styles.step1LabelStrong}>Card name</Text>
+              </View>
+              <Text style={styles.step1FieldHint}>How this location appears in your list</Text>
+              <TextInput
+                value={cardName}
+                onChangeText={(t) => {
+                  setCardName(t);
+                  if (cardNameError) setCardNameError(null);
+                }}
+                placeholder="e.g. Home, Office, Dad’s place"
+                placeholderTextColor="#94a3b8"
+                style={[styles.step1Input, cardNameError ? styles.step1InputError : null]}
+              />
+              {cardNameError ? <Text style={styles.step1ErrorText}>{cardNameError}</Text> : null}
+            </View>
+
+            <Text style={styles.step1GroupHeading}>Address & extra detail</Text>
+
+            <View style={styles.step1Group}>
+              <View style={styles.step1LabelRow}>
+                <FontAwesome name="road" size={14} color="#64748b" />
+                <Text style={styles.step1Label}>Street / block</Text>
+                <Text style={styles.step1OptionalPill}>Optional</Text>
+              </View>
+              <TextInput
+                value={house}
+                onChangeText={setHouse}
+                placeholder="House number, street, phase…"
+                placeholderTextColor="#94a3b8"
+                style={styles.step1Input}
+              />
+
+              <View style={[styles.step1LabelRow, styles.step1LabelRowAfterField]}>
+                <FontAwesome name="map-signs" size={14} color="#64748b" />
+                <Text style={styles.step1Label}>Landmark</Text>
+                <Text style={styles.step1OptionalPill}>Optional</Text>
+              </View>
+              <TextInput
+                value={landmark}
+                onChangeText={setLandmark}
+                placeholder="Near a school, building name…"
+                placeholderTextColor="#94a3b8"
+                style={styles.step1Input}
+              />
+
+              <View style={[styles.step1LabelRow, styles.step1LabelRowAfterField]}>
+                <FontAwesome name="align-left" size={14} color="#64748b" />
+                <Text style={styles.step1Label}>Notes</Text>
+                <Text style={styles.step1OptionalPill}>Optional</Text>
+              </View>
+              <TextInput
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Anything else for you or a driver (floor, gate code, tips)…"
+                placeholderTextColor="#94a3b8"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                style={[styles.step1Input, styles.step1InputMultiline]}
+              />
+            </View>
+          </View>
         );
       case 2:
         return (
@@ -340,7 +467,7 @@ export default function AddAddressScreen() {
           </>
         );
       case 4:
-        const displayCode = publicCode || previewCode;
+        const displayCode = (publicCode && publicCode.length > 0 ? publicCode : previewCode) ?? '';
         return (
           <>
             {/* Address Details Card */}
@@ -355,6 +482,26 @@ export default function AddAddressScreen() {
                 </View>
               </View>
 
+              {landmark.trim() ? (
+                <View style={styles.addressDetailsRow}>
+                  <FontAwesome name="map-signs" size={16} color="#2563eb" style={styles.addressDetailsIcon} />
+                  <View style={styles.addressDetailsContent}>
+                    <Text style={styles.addressDetailsLabel}>LANDMARK</Text>
+                    <Text style={styles.addressDetailsValue}>{landmark.trim()}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {notes.trim() ? (
+                <View style={styles.addressDetailsRow}>
+                  <FontAwesome name="align-left" size={16} color="#64748b" style={styles.addressDetailsIcon} />
+                  <View style={styles.addressDetailsContent}>
+                    <Text style={styles.addressDetailsLabel}>NOTES</Text>
+                    <Text style={styles.addressDetailsValue}>{notes.trim()}</Text>
+                  </View>
+                </View>
+              ) : null}
+
               <View style={styles.addressDetailsRow}>
                 <FontAwesome name="map-marker" size={16} color="#3b82f6" style={styles.addressDetailsIcon} />
                 <View style={styles.addressDetailsContent}>
@@ -366,6 +513,31 @@ export default function AddAddressScreen() {
                   </Text>
                 </View>
               </View>
+
+              {houseImages.length > 0 ? (
+                <View style={styles.addressDetailsRow}>
+                  <FontAwesome name="camera" size={16} color="#64748b" style={styles.addressDetailsIcon} />
+                  <View style={styles.addressDetailsContent}>
+                    <Text style={styles.addressDetailsLabel}>
+                      REFERENCE PHOTOS ({houseImages.length})
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      nestedScrollEnabled
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.reviewPhotosScroll}
+                      contentContainerStyle={styles.reviewPhotosScrollContent}>
+                      {houseImages.map((image, index) => (
+                        <Image
+                          key={`${image.uri}-${index}`}
+                          source={{ uri: image.uri }}
+                          style={[styles.reviewImage, index === houseImages.length - 1 && styles.reviewImageLast]}
+                        />
+                      ))}
+                    </ScrollView>
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             {/* Delivery Code Section */}
@@ -409,7 +581,7 @@ export default function AddAddressScreen() {
     <AccountGuard required="user">
       <View style={styles.screen}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 16 + insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <FontAwesome name="chevron-left" size={20} color="#111827" />
           </Pressable>
@@ -419,68 +591,81 @@ export default function AddAddressScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Progress Indicator */}
-          <View style={styles.progressContainer}>
-            {steps.map((step, index) => {
-              const isActive = step.id === currentStep;
-              const isCompleted = step.id < currentStep;
-              return (
-                <View key={step.id} style={styles.progressItem}>
-                  <View
-                    style={[
-                      styles.progressCircle,
-                      isActive && styles.progressCircleActive,
-                      isCompleted && styles.progressCircleCompleted,
-                    ]}>
-                    {isCompleted ? (
-                      <FontAwesome name="check" size={16} color="#fff" />
-                    ) : (
-                      <Text
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 120 + insets.bottom + 6 }]}
+          showsVerticalScrollIndicator={false}>
+          {/* Stepper */}
+          <View style={styles.progressWrap}>
+            <View style={styles.progressContainer}>
+              {steps.map((step, index) => {
+                const isActive = step.id === currentStep;
+                const isCompleted = step.id < currentStep;
+                return (
+                  <View key={step.id} style={styles.progressItem}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${step.title}, step ${step.id}`}
+                      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                      onPress={() => goToStep(step.id)}
+                      style={({ pressed }) => [
+                        styles.progressCircle,
+                        isCompleted && styles.progressCircleCompleted,
+                        isActive && !isCompleted && styles.progressCircleActive,
+                        pressed && styles.progressCirclePressed,
+                      ]}>
+                      {isCompleted ? (
+                        <FontAwesome name="check" size={14} color="#fff" />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.progressCircleText,
+                            isActive && styles.progressCircleTextActive,
+                          ]}>
+                          {step.id}
+                        </Text>
+                      )}
+                    </Pressable>
+                    {index < steps.length - 1 && (
+                      <View
                         style={[
-                          styles.progressCircleText,
-                          isActive && styles.progressCircleTextActive,
-                        ]}>
-                        {step.id}
-                      </Text>
+                          styles.progressLine,
+                          isCompleted && styles.progressLineCompleted,
+                          isActive && !isCompleted && styles.progressLineUpcoming,
+                        ]}
+                      />
                     )}
                   </View>
-                  {index < steps.length - 1 && (
-                    <View
-                      style={[
-                        styles.progressLine,
-                        isCompleted && styles.progressLineCompleted,
-                        isActive && styles.progressLineActive,
-                      ]}
-                    />
-                  )}
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
+            <Text style={styles.progressCurrentTitle}>{steps[currentStep - 1]?.title}</Text>
+            <Text style={styles.progressCurrentSubtitle}>{steps[currentStep - 1]?.subtitle}</Text>
           </View>
 
           {/* Main Card */}
           <View style={styles.card}>
             {renderStepContent()}
-            
-            {currentStep === 1 ? (
-              <Pressable style={styles.nextButton} onPress={goNext}>
-                <Text style={styles.nextButtonText}>Next: Drop Pin</Text>
-              </Pressable>
-            ) : null}
           </View>
         </ScrollView>
 
-        {currentStep > 1 && (
+        <View style={[styles.bottomBar, { paddingBottom: 6 + insets.bottom + 4 }]}>
           <View style={styles.footer}>
-            <Pressable style={styles.backButtonFooter} onPress={goBack}>
-              <Text style={styles.backButtonText}>Back</Text>
-            </Pressable>
+            {currentStep > 1 ? (
+              <Pressable style={styles.backButtonFooter} onPress={goBack}>
+                <Text style={styles.backButtonText}>Back</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.footerLeadingSpacer} />
+            )}
 
             {currentStep < steps.length ? (
               <Pressable style={styles.nextButtonFooter} onPress={goNext}>
                 <Text style={styles.nextButtonTextFooter}>
-                  {currentStep === 3 ? 'Next: Review & Save' : 'Next'}
+                  {currentStep === 1
+                    ? 'Next: Drop Pin'
+                    : currentStep === 3
+                      ? 'Next: Review & Save'
+                      : 'Next'}
                 </Text>
               </Pressable>
             ) : (
@@ -491,13 +676,13 @@ export default function AddAddressScreen() {
                 <Text style={styles.saveButtonTextLabel}>{saving ? 'Saving…' : 'Save Address Card'}</Text>
               </Pressable>
             )}
-            {saveError ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{saveError}</Text>
-              </View>
-            ) : null}
           </View>
-        )}
+          {saveError ? (
+            <View style={styles.errorBannerFooter}>
+              <Text style={styles.errorText}>{saveError}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </AccountGuard>
   );
@@ -512,8 +697,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 12,
+    backgroundColor: '#fff',
+  },
+  bottomBar: {
     backgroundColor: '#fff',
   },
   backButton: {
@@ -531,18 +718,29 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    fontWeight: '600',
+    color: '#2563eb',
   },
   content: {
     padding: 20,
-    paddingBottom: 120,
+    paddingTop: 8,
+  },
+  progressWrap: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.2)',
+    paddingTop: 18,
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+    marginBottom: 20,
   },
   progressContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
+    marginBottom: 14,
   },
   progressItem: {
     flexDirection: 'row',
@@ -550,42 +748,193 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   progressCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#e5e7eb',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 1,
   },
   progressCircleActive: {
-    backgroundColor: '#f97316',
-    borderColor: '#f97316',
+    backgroundColor: '#2563eb',
+    borderColor: '#1d4ed8',
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 4,
   },
   progressCircleCompleted: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: '#2563eb',
+    borderColor: '#1d4ed8',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  progressCirclePressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
   },
   progressCircleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#94a3b8',
   },
   progressCircleTextActive: {
     color: '#fff',
   },
   progressLine: {
     flex: 1,
-    height: 2,
-    backgroundColor: '#e5e7eb',
-    marginHorizontal: 4,
+    height: 3,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 6,
+    borderRadius: 2,
   },
   progressLineCompleted: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2563eb',
   },
-  progressLineActive: {
-    backgroundColor: '#f97316',
+  progressLineUpcoming: {
+    backgroundColor: '#bfdbfe',
+  },
+  progressCurrentTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  progressCurrentSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  step1Root: {
+    marginTop: -4,
+  },
+  step1Hint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eff6ff',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.22)',
+    marginBottom: 20,
+  },
+  step1HintIcon: {
+    marginRight: 10,
+    marginTop: 1,
+  },
+  step1HintText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#1e40af',
+    lineHeight: 19,
+  },
+  step1PrimaryBlock: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.28)',
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  step1LabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  step1LabelRowAfterField: {
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  step1LabelStrong: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  step1Label: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    letterSpacing: -0.1,
+  },
+  step1OptionalPill: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  step1FieldHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 10,
+    marginTop: -2,
+  },
+  step1GroupHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2563eb',
+    letterSpacing: 0.85,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  step1Group: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  step1Input: {
+    minHeight: 50,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    marginBottom: 4,
+  },
+  step1InputMultiline: {
+    minHeight: 108,
+    marginBottom: 0,
+    paddingTop: 14,
+  },
+  step1InputError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
+  },
+  step1ErrorText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#dc2626',
   },
   card: {
     backgroundColor: '#fff',
@@ -618,23 +967,6 @@ const styles = StyleSheet.create({
     height: 90,
     paddingTop: 12,
     textAlignVertical: 'top',
-  },
-  nextButton: {
-    marginTop: 24,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  nextButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  mapContainer: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#2f2f4a',
-    backgroundColor: '#0d0d1c',
   },
   mapPlaceholder: {
     height: 240,
@@ -718,11 +1050,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   reviewImage: {
-    width: 70,
-    height: 70,
+    width: 72,
+    height: 72,
     borderRadius: 12,
     marginRight: 8,
-    marginBottom: 8,
+    backgroundColor: '#e5e7eb',
+  },
+  reviewImageLast: {
+    marginRight: 0,
+  },
+  reviewPhotosScroll: {
+    marginTop: 4,
+    maxHeight: 76,
+  },
+  reviewPhotosScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 4,
   },
   footer: {
     flexDirection: 'row',
@@ -732,6 +1076,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     backgroundColor: '#fff',
+  },
+  footerLeadingSpacer: {
+    flex: 1,
   },
   backButtonFooter: {
     paddingHorizontal: 20,
@@ -1036,12 +1383,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#3b82f6',
   },
-  errorBanner: {
-    marginTop: 12,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(220, 38, 38, 0.12)',
-    borderWidth: 1,
-    borderColor: '#dc2626',
+  errorBannerFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
 });

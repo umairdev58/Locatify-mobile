@@ -20,8 +20,13 @@ export default function AccountGuard({ required, children }: AccountGuardProps) 
       return;
     }
 
-    if (accountType !== required) {
-      let destination = '(tabs)';
+    const allowed =
+      required === 'delivery'
+        ? accountType === 'delivery' || accountType === 'rider'
+        : accountType === required;
+
+    if (!allowed) {
+      let destination: string = '/(tabs)';
       if (accountType === 'delivery' || accountType === 'rider') {
         destination = '/delivery-search';
       }

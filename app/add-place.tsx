@@ -1,18 +1,20 @@
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View, Text, ActivityIndicator } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Location from 'expo-location';
 
 import AccountGuard from '@/components/AccountGuard';
 import MapLocationPicker from '@/components/MapLocationPicker';
-import { useColorScheme } from '@/components/useColorScheme';
 import { useToast } from '@/components/ToastProvider';
-import Colors from '@/constants/Colors';
 import { savePlace, updatePlace } from '@/api/place';
+
+type Coords = { latitude: number; longitude: number };
 
 export default function AddPlaceScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     lat?: string;
     lng?: string;
@@ -20,12 +22,10 @@ export default function AddPlaceScreen() {
     notes?: string;
     placeId?: string;
   }>();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
   const { showToast } = useToast();
   const [name, setName] = useState(params.name ?? '');
   const [notes, setNotes] = useState(params.notes ?? '');
-  const [selectedCoords, setSelectedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<Coords | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -56,24 +56,26 @@ export default function AddPlaceScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      const coords = {
+      const coords: Coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
       setSelectedCoords(coords);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Unable to get your current location.');
     }
   };
 
   const handleSave = async () => {
     if (!name.trim()) {
-      setSaveError('Please enter a name for this place.');
+      setSaveError('Enter a name for this place.');
+      showToast('Enter a name for this place.', 'error');
       return;
     }
 
     if (!selectedCoords) {
-      setSaveError('Please select a location on the map.');
+      setSaveError('Drop a pin on the map or use your current location.');
+      showToast('Pick a location on the map first.', 'error');
       return;
     }
 
@@ -89,10 +91,7 @@ export default function AddPlaceScreen() {
           location: selectedCoords,
         });
         showToast('Place updated successfully!', 'success');
-        // Small delay to show toast before navigation
-        setTimeout(() => {
-          router.back();
-        }, 500);
+        setTimeout(() => router.back(), 500);
       } else {
         await savePlace({
           name: name.trim(),
@@ -100,10 +99,7 @@ export default function AddPlaceScreen() {
           location: selectedCoords,
         });
         showToast('Place saved successfully!', 'success');
-        // Small delay to show toast before navigation
-        setTimeout(() => {
-          router.back();
-        }, 500);
+        setTimeout(() => router.back(), 500);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to save place';
@@ -117,92 +113,117 @@ export default function AddPlaceScreen() {
   return (
     <AccountGuard required="user">
       <View style={styles.screen}>
-        {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 16 + insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <FontAwesome name="chevron-left" size={20} color="#111827" />
           </Pressable>
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>{isEditing ? 'Edit Place' : 'Add New Place'}</Text>
-            <Text style={styles.headerSubtitle}>Save a location you want to remember</Text>
+            <Text style={styles.headerTitle}>{isEditing ? 'Edit place' : 'Pin a place'}</Text>
+            <Text style={styles.headerSubtitle}>
+              {isEditing ? 'Update name, notes, or location' : 'Name it, then set the map pin'}
+            </Text>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Name Field */}
-          <Text style={styles.fieldLabel}>Place Name *</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g., Parking Spot, Friend's House, Workshop"
-            placeholderTextColor="#9ca3af"
-            style={styles.input}
-          />
-
-          {/* Notes Field */}
-          <Text style={styles.fieldLabel}>Notes (optional)</Text>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Add any helpful notes about this place"
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={3}
-            style={[styles.input, styles.notesInput]}
-          />
-
-          {/* Instruction Box */}
-          <View style={styles.instructionBox}>
-            <View style={styles.instructionIcon}>
-              <FontAwesome name="exclamation" size={16} color="#fff" />
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom + 6 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.hint}>
+            <View style={styles.hintIcon}>
+              <FontAwesome name="info-circle" size={15} color="#2563eb" />
             </View>
-            <Text style={styles.instructionText}>
-              Drop a precise pin on the map or get your location automatically
+            <Text style={styles.hintText}>
+              Saved places appear under Pin Loc. Drop an accurate pin so you can open it in maps anytime.
             </Text>
           </View>
 
-          {/* Map */}
+          <View style={styles.primaryBlock}>
+            <View style={styles.labelRow}>
+              <FontAwesome name="map-pin" size={14} color="#2563eb" />
+              <Text style={styles.labelStrong}>Place name</Text>
+            </View>
+            <Text style={styles.fieldHint}>Required — how you’ll recognize this pin</Text>
+            <TextInput
+              value={name}
+              onChangeText={(t) => {
+                setName(t);
+                if (saveError) setSaveError(null);
+              }}
+              placeholder="e.g. Parking spot, Trail head, Café meetup"
+              placeholderTextColor="#94a3b8"
+              style={styles.inputPrimary}
+            />
+          </View>
+
+          <Text style={styles.groupHeading}>Notes</Text>
+          <View style={styles.group}>
+            <View style={styles.labelRow}>
+              <FontAwesome name="align-left" size={14} color="#64748b" />
+              <Text style={styles.label}>Extra detail</Text>
+              <Text style={styles.optionalPill}>Optional</Text>
+            </View>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Hours, access tips, who to meet…"
+              placeholderTextColor="#94a3b8"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              style={[styles.inputPrimary, styles.inputMultiline]}
+            />
+          </View>
+
+          <View style={styles.mapHintBox}>
+            <View style={styles.mapHintIcon}>
+              <FontAwesome name="crosshairs" size={14} color="#fff" />
+            </View>
+            <Text style={styles.mapHintText}>Drag the map or tap to place your pin. You can refine with current GPS below.</Text>
+          </View>
+
           <View style={styles.mapContainer}>
             <MapLocationPicker
-              onLocationSelect={(coords) => setSelectedCoords(coords)}
+              onLocationSelect={(coords: Coords) => setSelectedCoords(coords)}
               initialLocation={selectedCoords ?? undefined}
             />
           </View>
 
-          {/* Coordinates Input */}
           <View style={styles.coordinatesRow}>
-            <View style={[styles.coordinateField, { marginRight: 12 }]}>
-              <Text style={styles.coordinateLabel}>Latitude</Text>
+            <View style={[styles.coordCell, { marginRight: 10 }]}>
+              <Text style={styles.coordLabel}>Latitude</Text>
               <TextInput
-                value={selectedCoords ? selectedCoords.latitude.toFixed(4) : '0.0000'}
+                value={selectedCoords ? selectedCoords.latitude.toFixed(4) : '—'}
                 editable={false}
-                style={styles.coordinateInput}
-                placeholderTextColor="#9ca3af"
+                style={styles.coordInput}
               />
             </View>
-            <View style={styles.coordinateField}>
-              <Text style={styles.coordinateLabel}>Longitude</Text>
+            <View style={styles.coordCell}>
+              <Text style={styles.coordLabel}>Longitude</Text>
               <TextInput
-                value={selectedCoords ? selectedCoords.longitude.toFixed(4) : '0.0000'}
+                value={selectedCoords ? selectedCoords.longitude.toFixed(4) : '—'}
                 editable={false}
-                style={styles.coordinateInput}
-                placeholderTextColor="#9ca3af"
+                style={styles.coordInput}
               />
             </View>
           </View>
 
-          {/* Use Current Location Button */}
-          <Pressable style={styles.currentLocationButton} onPress={handleUseCurrentLocation}>
-            <FontAwesome name="location-arrow" size={16} color="#3b82f6" style={{ marginRight: 8 }} />
-            <Text style={styles.currentLocationButtonText}>Use My Current Location</Text>
+          <Pressable style={styles.locationButton} onPress={handleUseCurrentLocation}>
+            <FontAwesome name="location-arrow" size={16} color="#2563eb" style={{ marginRight: 10 }} />
+            <Text style={styles.locationButtonText}>Use my current location</Text>
           </Pressable>
 
-          {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
+          {saveError ? (
+            <View style={styles.inlineError}>
+              <Text style={styles.inlineErrorText}>{saveError}</Text>
+            </View>
+          ) : null}
+        </ScrollView>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <Pressable style={styles.backButtonAction} onPress={() => router.back()}>
-              <Text style={styles.backButtonText}>Cancel</Text>
+        <View style={[styles.bottomBar, { paddingBottom: 6 + insets.bottom + 4 }]}>
+          <View style={styles.footer}>
+            <Pressable style={styles.cancelButton} onPress={() => router.back()}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               style={[styles.saveButton, saving && styles.saveButtonDisabled]}
@@ -211,11 +232,11 @@ export default function AddPlaceScreen() {
               {saving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>{isEditing ? 'Update Place' : 'Save Place'}</Text>
+                <Text style={styles.saveButtonLabel}>{isEditing ? 'Update' : 'Save place'}</Text>
               )}
             </Pressable>
           </View>
-        </ScrollView>
+        </View>
       </View>
     </AccountGuard>
   );
@@ -224,170 +245,273 @@ export default function AddPlaceScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 12,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
   backButton: {
     padding: 8,
-    marginRight: 8,
+    marginRight: 12,
   },
   headerTextContainer: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+    marginTop: 4,
   },
   content: {
     padding: 20,
-    paddingBottom: 40,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  input: {
-    height: 48,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#111827',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginBottom: 20,
-  },
-  notesInput: {
-    height: 80,
     paddingTop: 12,
-    textAlignVertical: 'top',
   },
-  instructionBox: {
+  hint: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
+    alignItems: 'flex-start',
+    backgroundColor: '#eff6ff',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.22)',
+    marginBottom: 18,
+  },
+  hintIcon: {
+    marginRight: 10,
+    marginTop: 1,
+  },
+  hintText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#1e40af',
+    lineHeight: 19,
+  },
+  primaryBlock: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.28)',
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 2,
   },
-  instructionIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#f59e0b',
+  groupHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2563eb',
+    letterSpacing: 0.85,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  group: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 20,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  labelStrong: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  label: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  optionalPill: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  fieldHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 10,
+    marginTop: -2,
+  },
+  inputPrimary: {
+    minHeight: 50,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+  },
+  inputMultiline: {
+    minHeight: 100,
+    marginTop: 4,
+    paddingTop: 14,
+  },
+  mapHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dbeafe',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.2)',
+  },
+  mapHintIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  instructionText: {
+  mapHintText: {
     flex: 1,
     fontSize: 13,
-    color: '#92400e',
-    lineHeight: 18,
+    fontWeight: '600',
+    color: '#1e40af',
+    lineHeight: 19,
   },
   mapContainer: {
-    height: 300,
-    borderRadius: 12,
+    height: 280,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#cbd5e1',
+    backgroundColor: '#e2e8f0',
   },
   coordinatesRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  coordinateField: {
+  coordCell: {
     flex: 1,
   },
-  coordinateLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6b7280',
+  coordLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginBottom: 6,
   },
-  coordinateInput: {
+  coordInput: {
     height: 48,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#f9fafb',
+    fontWeight: '700',
+    color: '#0f172a',
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    fontFamily: 'monospace',
+    borderColor: '#e2e8f0',
+    fontVariant: ['tabular-nums'],
   },
-  currentLocationButton: {
+  locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderRadius: 14,
     paddingVertical: 14,
-    marginBottom: 24,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.35)',
   },
-  currentLocationButtonText: {
+  locationButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#3b82f6',
+    fontWeight: '700',
+    color: '#2563eb',
   },
-  errorText: {
+  inlineError: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  inlineErrorText: {
     color: '#dc2626',
     fontSize: 13,
-    marginBottom: 16,
+    fontWeight: '600',
     textAlign: 'center',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    marginTop: 8,
+  bottomBar: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
-  backButtonAction: {
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  cancelButton: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginRight: 12,
   },
-  backButtonText: {
+  cancelButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: '700',
+    color: '#64748b',
   },
   saveButton: {
     flex: 1,
-    backgroundColor: '#3b82f6',
-    borderRadius: 12,
+    backgroundColor: '#2563eb',
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.65,
   },
-  saveButtonText: {
+  saveButtonLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
 });
-

@@ -1,11 +1,7 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useColorScheme } from './useColorScheme';
-import Colors from '@/constants/Colors';
-
-const { width } = Dimensions.get('window');
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -23,8 +19,6 @@ interface ToastProps {
 }
 
 export default function Toast({ visible, message, type, onHide }: ToastProps) {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const translateY = React.useRef(new Animated.Value(-100)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
@@ -92,18 +86,14 @@ export default function Toast({ visible, message, type, onHide }: ToastProps) {
   const getIconColor = () => {
     switch (type) {
       case 'success':
-        return '#34C759'; // Apple green
+        return '#16a34a';
       case 'error':
-        return '#FF3B30'; // Apple red
+        return '#dc2626';
       case 'info':
-        return '#007AFF'; // Apple blue
+        return '#2563eb';
       default:
-        return '#34C759';
+        return '#16a34a';
     }
-  };
-
-  const getBackgroundColor = () => {
-    return colorScheme === 'dark' ? '#1C1C1E' : '#FFFFFF';
   };
 
   return (
@@ -113,19 +103,12 @@ export default function Toast({ visible, message, type, onHide }: ToastProps) {
         {
           transform: [{ translateY }],
           opacity,
-          backgroundColor: getBackgroundColor(),
           top: Platform.OS === 'ios' ? Math.max(insets.top + 8, 60) : 60,
         },
       ]}>
       <View style={styles.content}>
         <FontAwesome name={getIcon()} size={20} color={getIconColor()} style={styles.icon} />
-        <Text
-          style={[
-            styles.message,
-            { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' },
-          ]}>
-          {message}
-        </Text>
+        <Text style={styles.message}>{message}</Text>
       </View>
     </Animated.View>
   );
@@ -139,12 +122,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    shadowColor: '#000',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#0f172a',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
     zIndex: 9999,
@@ -158,9 +144,10 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     flex: 1,
     letterSpacing: -0.2,
+    color: '#111827',
   },
 });
 

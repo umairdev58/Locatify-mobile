@@ -7,9 +7,10 @@ import {
   View,
   Text,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+
+import EmbeddedMapPreview from '@/components/EmbeddedMapPreview';
 
 export default function PlaceDetailScreen() {
   const router = useRouter();
@@ -22,12 +23,6 @@ export default function PlaceDetailScreen() {
   }>();
   const latitude = Number(params.lat) || 31.5204;
   const longitude = Number(params.lng) || 74.3587;
-  const region: Region = {
-    latitude,
-    longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  };
 
   const handleNavigate = () => {
     const mapsUrl =
@@ -51,13 +46,7 @@ export default function PlaceDetailScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Map Preview */}
         <View style={styles.mapPreview}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={StyleSheet.absoluteFillObject}
-            region={region}
-            toolbarEnabled={false}>
-            <Marker coordinate={{ latitude, longitude }} />
-          </MapView>
+          <EmbeddedMapPreview latitude={latitude} longitude={longitude} />
         </View>
 
         {/* Place Card */}

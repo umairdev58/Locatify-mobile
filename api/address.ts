@@ -11,6 +11,8 @@ export type SaveAddressPayload = {
   fullTextAddress: string;
   location: LocationPayload;
   cardName?: string;
+  landmark?: string;
+  notes?: string;
   houseImages?: ImageAsset[];
   addressId?: string;
 };
@@ -18,6 +20,8 @@ export type SaveAddressPayload = {
 export type AddressResponse = {
   _id: string;
   fullTextAddress: string;
+  landmark?: string;
+  notes?: string;
   cardName: string;
   location: LocationPayload;
   houseImages: string[];
@@ -36,12 +40,16 @@ const buildPayload = (payload: SaveAddressPayload) => ({
   fullTextAddress: payload.fullTextAddress,
   location: payload.location,
   cardName: payload.cardName,
+  landmark: payload.landmark ?? '',
+  notes: payload.notes ?? '',
   addressId: payload.addressId,
-  houseImages: payload.houseImages?.map(({ base64, name, type }) => ({
-    base64,
-    name,
-    type,
-  })),
+  houseImages: payload.houseImages
+    ?.filter((img) => typeof img.base64 === 'string' && img.base64.length > 0)
+    .map(({ base64, name, type }) => ({
+      base64: base64 as string,
+      name,
+      type,
+    })),
 });
 
 const sendJsonPayload = async (

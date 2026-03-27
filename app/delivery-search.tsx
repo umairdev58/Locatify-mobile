@@ -1,17 +1,14 @@
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AccountGuard from '@/components/AccountGuard';
 import { getAddressByCode } from '@/api/address';
-import { useColorScheme } from '@/components/useColorScheme';
-import Colors from '@/constants/Colors';
 
 export default function DeliverySearchScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const theme = Colors[colorScheme];
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,6 +16,8 @@ export default function DeliverySearchScreen() {
     null | {
       _id: string;
       fullTextAddress: string;
+      landmark?: string;
+      notes?: string;
       location: { latitude: number; longitude: number };
       publicCode: string;
       cardName: string;
@@ -45,35 +44,22 @@ export default function DeliverySearchScreen() {
     }
   };
 
-  const region: Region = address
-    ? {
-        latitude: address.location.latitude,
-        longitude: address.location.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
-    : {
-        latitude: 31.5204,
-        longitude: 74.3587,
-        latitudeDelta: 0.03,
-        longitudeDelta: 0.03,
-      };
-
   return (
     <AccountGuard required="delivery">
       <View style={styles.screen}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Find Location</Text>
+        {/* Header — aligned with user app chrome */}
+        <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
+          <View style={styles.headerTitles}>
+            <Text style={styles.headerBrand}>Locatify</Text>
+            <Text style={styles.headerSubtitle}>Find by address code</Text>
+          </View>
           <View style={styles.headerIcons}>
-            <Pressable style={styles.headerIconButton} onPress={() => Alert.alert('Quick Actions', 'Quick actions coming soon')}>
-              <FontAwesome name="bolt" size={18} color="#6b7280" />
-            </Pressable>
-            <Pressable style={styles.headerIconButton} onPress={() => Alert.alert('Settings', 'Settings coming soon')}>
-              <FontAwesome name="gear" size={18} color="#6b7280" />
-            </Pressable>
-            <Pressable style={styles.headerLogoutButton} onPress={() => router.replace('/login')}>
-              <FontAwesome name="sign-out" size={16} color="#ef4444" />
+            <Pressable
+              style={styles.headerIconButton}
+              onPress={() => router.replace('/login')}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out">
+              <FontAwesome name="sign-out" size={16} color="#b91c1c" />
             </Pressable>
           </View>
         </View>
@@ -81,7 +67,7 @@ export default function DeliverySearchScreen() {
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={[styles.searchBar, address && styles.searchBarFilled]}>
-            <FontAwesome name="search" size={18} color={address ? "#f97316" : "#9ca3af"} style={styles.searchIcon} />
+            <FontAwesome name="search" size={18} color={address ? '#2563eb' : '#9ca3af'} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Enter address code (e.g., ADDR-ABC123)"
@@ -178,6 +164,8 @@ export default function DeliverySearchScreen() {
                       pathname: '/address-detail',
                       params: {
                         address: address.fullTextAddress,
+                        landmark: address.landmark ?? '',
+                        notes: address.notes ?? '',
                         lat: address.location.latitude.toString(),
                         lng: address.location.longitude.toString(),
                         code: address.publicCode,
@@ -221,42 +209,47 @@ export default function DeliverySearchScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(148, 163, 184, 0.45)',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+  headerTitles: {
+    flex: 1,
+  },
+  headerBrand: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: -0.4,
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
   },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f3f4f6',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-  },
-  headerLogoutButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#fee2e2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   searchContainer: {
     paddingHorizontal: 20,
@@ -274,7 +267,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   searchBarFilled: {
-    borderColor: '#f97316',
+    borderColor: '#2563eb',
     borderWidth: 2,
   },
   searchIcon: {
@@ -286,9 +279,9 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   searchButton: {
-    backgroundColor: '#3b82f6',
+    height: 52,
+    backgroundColor: '#5b86d6',
     borderRadius: 12,
-    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -308,7 +301,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
@@ -333,10 +328,17 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   locationCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 20,
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
   },
   locationCardHeader: {
     flexDirection: 'row',
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   locationFoundBadge: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -412,17 +414,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#f97316',
+    borderColor: '#2563eb',
     marginRight: 12,
   },
   viewMapButtonText: {
-    color: '#f97316',
+    color: '#2563eb',
     fontSize: 15,
     fontWeight: '600',
   },
   startNavigationButton: {
     flex: 1,
-    backgroundColor: '#f97316',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -433,15 +435,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tipBox: {
-    backgroundColor: '#e0f2fe',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: 'rgba(37, 99, 235, 0.2)',
   },
   tipText: {
     fontSize: 13,
-    color: '#0369a1',
+    color: '#1e40af',
     lineHeight: 18,
+    fontWeight: '500',
   },
 });

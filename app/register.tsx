@@ -184,7 +184,7 @@ import { useState } from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { registerUser, RegisterPayload } from '@/api/auth';
-import { setAccountType, setAuthToken } from '@/store/session';
+import { setAccountType, setAuthToken, setUserProfile } from '@/store/session';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -207,7 +207,8 @@ export default function RegisterScreen() {
       const { token, user } = await registerUser({ name, email, password, accountType });
       setAuthToken(token);
       setAccountType(user.accountType);
-      const destination = user.accountType === 'delivery' ? '/delivery-search' : '(tabs)';
+      setUserProfile(user);
+      const destination = user.accountType === 'delivery' ? '/delivery-search' : '/(tabs)';
       router.replace(destination);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to register';

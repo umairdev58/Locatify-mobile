@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#2563eb',
     padding: 20,
     paddingBottom: 16,
   },
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   notesBox: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     padding: 16,
   },
