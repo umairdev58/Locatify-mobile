@@ -27,9 +27,10 @@ WebBrowser.maybeCompleteAuthSession();
 
 /** Web OAuth redirect: must match Google Cloud "Web application" → Authorized redirect URIs exactly (incl. port). */
 function getWebGoogleRedirectUri(): string {
-  const fromEnv = (process as any)?.env?.EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI as string | undefined;
-  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
-    return fromEnv.trim().replace(/\/$/, '');
+  // Must use `process.env.EXPO_PUBLIC_*` literally so babel-preset-expo inlines EAS env at build time.
+  const fromEnv = process.env.EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI?.trim();
+  if (fromEnv) {
+    return fromEnv.replace(/\/$/, '');
   }
   if (typeof window !== 'undefined') {
     return AuthSession.makeRedirectUri({ path: '' });
@@ -47,7 +48,7 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const hasError = !!errorMessage;
 
-  const googleClientId = (process as any)?.env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? '';
   const expoCfg = Constants.expoConfig;
   const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 

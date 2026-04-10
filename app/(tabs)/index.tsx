@@ -21,6 +21,7 @@ import Colors from '@/constants/Colors';
 import { useToast } from '@/components/ToastProvider';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import AddressCardSkeleton from '@/components/AddressCardSkeleton';
+import ShareWithLocatifyModal from '@/components/ShareWithLocatifyModal';
 import { getMyAddresses, AddressResponse, deleteAddress } from '@/api/address';
 import { useTabSearch } from '@/components/TabSearchContext';
 
@@ -38,13 +39,15 @@ export default function TabOneScreen({}: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [addressToDelete, setAddressToDelete] = useState<AddressResponse | null>(null);
+  const [shareModalItem, setShareModalItem] = useState<AddressResponse | null>(null);
 
-  const addressCount = addresses.length;
+  const ownedAddresses = addresses.filter((a) => !a.sharedFromUser);
+  const addressCount = ownedAddresses.length;
   const addressCountText = `${addressCount} ${addressCount === 1 ? 'address' : 'addresses'} saved`;
 
   const normalizedQuery = myLocQuery.trim().toLowerCase();
   const filteredAddresses = normalizedQuery
-    ? addresses.filter((a) => {
+    ? ownedAddresses.filter((a) => {
         const haystack = [
           a.cardName,
           a.fullTextAddress,
@@ -58,7 +61,7 @@ export default function TabOneScreen({}: Props) {
           .toLowerCase();
         return haystack.includes(normalizedQuery);
       })
-    : addresses;
+    : ownedAddresses;
 
   const fetchAddress = useCallback(() => {
     let canceled = false;
@@ -339,6 +342,17 @@ export default function TabOneScreen({}: Props) {
                     <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
                   </Pressable>
                 </View>
+                <View style={styles.actionButtonsSecondRow}>
+                  <Pressable
+                    style={styles.shareLocatifyButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setShareModalItem(item);
+                    }}>
+                    <FontAwesome name="users" size={16} color="#7c3aed" style={{ marginRight: 8 }} />
+                    <Text style={styles.shareLocatifyButtonText}>Share with Locatify user</Text>
+                  </Pressable>
+                </View>
               </Pressable>
             );
           }}
@@ -383,6 +397,14 @@ export default function TabOneScreen({}: Props) {
         confirmButtonStyle="destructive"
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
+      />
+
+      <ShareWithLocatifyModal
+        visible={!!shareModalItem}
+        addressId={shareModalItem?._id ?? null}
+        cardLabel={shareModalItem?.cardName || 'Address'}
+        onClose={() => setShareModalItem(null)}
+        onShared={() => showToast('Share request sent', 'success')}
       />
     </View>
   );
@@ -615,6 +637,27 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     padding: 16,
+    paddingBottom: 8,
+  },
+  actionButtonsSecondRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  shareLocatifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#f3e8ff',
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+  },
+  shareLocatifyButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#7c3aed',
   },
   actionButton: {
     flex: 1,

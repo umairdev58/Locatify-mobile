@@ -15,11 +15,14 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { getAddressByCode } from '@/api/address';
 import EmbeddedMapPreview from '@/components/EmbeddedMapPreview';
+import ShareWithLocatifyModal from '@/components/ShareWithLocatifyModal';
+import { useToast } from '@/components/ToastProvider';
 import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
 export default function AddressDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{
     address?: string;
     landmark?: string;
@@ -31,6 +34,8 @@ export default function AddressDetailScreen() {
     addressId?: string;
     mode?: 'user' | 'delivery';
     houseImages?: string;
+    /** Set when opening a card that was received via in-app share (read-only: navigate only) */
+    readOnly?: string;
   }>();
   const latitude = Number(params.lat) || 31.5204;
   const longitude = Number(params.lng) || 74.3587;
@@ -51,6 +56,11 @@ export default function AddressDetailScreen() {
   const [landmarkText, setLandmarkText] = useState(params.landmark ?? '');
   const [notesText, setNotesText] = useState(params.notes ?? '');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [sharedFromName, setSharedFromName] = useState<string | null>(null);
+  const [isReadOnlyShared, setIsReadOnlyShared] = useState(
+    () => params.readOnly === '1' || params.readOnly === 'true',
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +71,14 @@ export default function AddressDetailScreen() {
         setRemoteHouseImages(data.houseImages ?? []);
         if (typeof data.landmark === 'string') setLandmarkText(data.landmark);
         if (typeof data.notes === 'string') setNotesText(data.notes);
+        const sf = data.sharedFromUser;
+        const readOnly = !!sf && (typeof sf === 'object' || typeof sf === 'string');
+        setIsReadOnlyShared(readOnly);
+        if (sf && typeof sf === 'object' && 'name' in sf && typeof sf.name === 'string') {
+          setSharedFromName(sf.name);
+        } else {
+          setSharedFromName(null);
+        }
       })
       .catch(() => {
         // ignore
@@ -111,6 +129,13 @@ export default function AddressDetailScreen() {
 
         {/* Location Card */}
         <View style={styles.locationCard}>
+          {params.mode === 'user' && isReadOnlyShared ? (
+            <View style={styles.sharedBanner}>
+              <Text style={styles.sharedBannerText}>
+                {sharedFromName ? `Shared from ${sharedFromName}` : 'Shared with you — view and navigate only'}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.locationCardHeader}>
             <Text style={styles.locationCardTitle}>{params.name ?? 'Untitled'}</Text>
             {params.mode === 'delivery' && (
@@ -192,33 +217,59 @@ export default function AddressDetailScreen() {
                 <Text style={styles.startNavigationButtonText}>Start Navigation</Text>
               </Pressable>
             </View>
-          ) : (
-            <View style={styles.actionButtonsRow}>
+          ) : isReadOnlyShared ? (
+            <>
               <Pressable
-                style={styles.editButton}
-                onPress={() =>
-                  router.push({
-                    pathname: '/add-address',
-                    params: {
-                      address: params.address,
-                      landmark: landmarkText,
-                      notes: notesText,
-                      lat: params.lat,
-                      lng: params.lng,
-                      cardName: params.name,
-                      addressId: params.addressId,
-                      publicCode: params.code ?? '',
-                      houseImages: JSON.stringify(displayedHouseImages),
-                    },
-                  })
-                }>
-                <FontAwesome name="pencil" size={16} color="#3b82f6" style={{ marginRight: 8 }} />
-                <Text style={styles.editButtonText}>Edit</Text>
+                style={[styles.startNavigationButtonFull, styles.navigateButtonRow]}
+                onPress={() => {
+                  const lat = Number(params.lat ?? 0);
+                  const lng = Number(params.lng ?? 0);
+                  openNavigationMaps(lat, lng);
+                }}>
+                <FontAwesome name="map-marker" size={16} color="#fff" style={{ marginRight: 10 }} />
+                <Text style={styles.startNavigationButtonText}>Navigate to coordinates</Text>
               </Pressable>
-              <Pressable style={styles.closeButton} onPress={() => router.back()}>
+              <Pressable style={[styles.closeButton, styles.closeButtonReadOnly]} onPress={() => router.back()}>
                 <Text style={styles.closeButtonText}>Close</Text>
               </Pressable>
-            </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.actionButtonsRow}>
+                <Pressable
+                  style={styles.editButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/add-address',
+                      params: {
+                        address: params.address,
+                        landmark: landmarkText,
+                        notes: notesText,
+                        lat: params.lat,
+                        lng: params.lng,
+                        cardName: params.name,
+                        addressId: params.addressId,
+                        publicCode: params.code ?? '',
+                        houseImages: JSON.stringify(displayedHouseImages),
+                      },
+                    })
+                  }>
+                  <FontAwesome name="pencil" size={16} color="#3b82f6" style={{ marginRight: 8 }} />
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+                <Pressable style={styles.closeButton} onPress={() => router.back()}>
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </Pressable>
+              </View>
+              {params.addressId ? (
+                <Pressable
+                  style={styles.shareLocatifyRow}
+                  onPress={() => setShareModalOpen(true)}>
+                  <FontAwesome name="users" size={16} color="#7c3aed" style={{ marginRight: 8 }} />
+                  <Text style={styles.shareLocatifyRowText}>Share with Locatify user</Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
 
           {/* Tip Box for Delivery Mode */}
@@ -241,6 +292,16 @@ export default function AddressDetailScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {!isReadOnlyShared ? (
+        <ShareWithLocatifyModal
+          visible={shareModalOpen}
+          addressId={params.addressId ?? null}
+          cardLabel={params.name ?? 'Address'}
+          onClose={() => setShareModalOpen(false)}
+          onShared={() => showToast('Share request sent', 'success')}
+        />
+      ) : null}
     </View>
   );
 }
@@ -289,6 +350,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 16,
     padding: 20,
+  },
+  sharedBanner: {
+    backgroundColor: '#f3e8ff',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+  },
+  sharedBannerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6b21a8',
   },
   locationCardHeader: {
     flexDirection: 'row',
@@ -368,6 +443,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
+  navigateButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  closeButtonReadOnly: {
+    marginTop: 12,
+    width: '100%',
+    flex: 0,
+  },
   startNavigationButtonText: {
     color: '#fff',
     fontSize: 15,
@@ -399,6 +488,22 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 15,
     fontWeight: '600',
+  },
+  shareLocatifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#faf5ff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+  },
+  shareLocatifyRowText: {
+    color: '#7c3aed',
+    fontSize: 15,
+    fontWeight: '700',
   },
   tipBox: {
     backgroundColor: '#e0f2fe',

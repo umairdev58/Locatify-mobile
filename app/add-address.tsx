@@ -6,7 +6,6 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Clipboard from 'expo-clipboard';
 
 import AccountGuard from '@/components/AccountGuard';
 import MapLocationPicker from '@/components/MapLocationPicker';
@@ -16,12 +15,6 @@ import { useToast } from '@/components/ToastProvider';
 import Colors from '@/constants/Colors';
 import { saveAddress, updateAddress } from '@/api/address';
 import type { ImageAsset } from '@/types/image';
-
-function parsePublicCodeParam(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  if (Array.isArray(value) && value[0] && String(value[0]).trim()) return String(value[0]).trim();
-  return null;
-}
 
 const steps = [
   { id: 1, title: 'Text Address', subtitle: 'House, landmark, and notes' },
@@ -41,7 +34,6 @@ export default function AddAddressScreen() {
     landmark?: string;
     notes?: string;
     addressId?: string;
-    publicCode?: string;
     /** JSON array of image URL strings when opening edit flow */
     houseImages?: string;
   }>();
@@ -59,15 +51,6 @@ export default function AddAddressScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [cardNameError, setCardNameError] = useState<string | null>(null);
-  const [publicCode, setPublicCode] = useState<string | null>(() => parsePublicCodeParam(params.publicCode));
-  const [previewCode] = useState(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = 'ADDR-';
-    for (let i = 0; i < 6; i++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return code;
-  });
   /** Avoid re-applying route images when other params change (would wipe newly picked photos). */
   const appliedHouseImagesParam = useRef<string | undefined>(undefined);
   const inputBackground = isDark ? '#1c1f33' : '#f3f5ff';
@@ -123,10 +106,6 @@ export default function AddAddressScreen() {
     if (params.notes !== undefined) {
       setNotes(params.notes);
     }
-    const codeFromRoute = parsePublicCodeParam(params.publicCode);
-    if (codeFromRoute) {
-      setPublicCode(codeFromRoute);
-    }
     if (
       typeof params.houseImages === 'string' &&
       params.houseImages !== appliedHouseImagesParam.current
@@ -155,7 +134,6 @@ export default function AddAddressScreen() {
     params.address,
     params.landmark,
     params.notes,
-    params.publicCode,
     params.houseImages,
   ]);
 
@@ -166,11 +144,6 @@ export default function AddAddressScreen() {
       pathname: '/select-location',
       params: { redirect: '/add-address' },
     });
-  };
-
-  const handleCopyCode = async (code: string) => {
-    await Clipboard.setStringAsync(code);
-    Alert.alert('Copied!', 'Delivery code copied to clipboard');
   };
 
   const handleUseCurrentLocation = async () => {
@@ -467,7 +440,6 @@ export default function AddAddressScreen() {
           </>
         );
       case 4:
-        const displayCode = (publicCode && publicCode.length > 0 ? publicCode : previewCode) ?? '';
         return (
           <>
             {/* Address Details Card */}
@@ -538,23 +510,6 @@ export default function AddAddressScreen() {
                   </View>
                 </View>
               ) : null}
-            </View>
-
-            {/* Delivery Code Section */}
-            <View style={styles.deliveryCodeCard}>
-              <Text style={styles.deliveryCodeLabel}>DELIVERY RIDERS WILL USE THIS CODE</Text>
-              <View style={styles.deliveryCodeInputContainer}>
-                <TextInput
-                  value={displayCode}
-                  editable={false}
-                  style={styles.deliveryCodeInput}
-                />
-                <Pressable
-                  style={styles.deliveryCodeCopyButton}
-                  onPress={() => handleCopyCode(displayCode)}>
-                  <FontAwesome name="copy" size={16} color="#fff" />
-                </Pressable>
-              </View>
             </View>
 
             {/* Card Name Input */}
@@ -1313,47 +1268,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#111827',
-  },
-  deliveryCodeCard: {
-    backgroundColor: '#fff7ed',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-  },
-  deliveryCodeLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#9a3412',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  deliveryCodeInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  deliveryCodeInput: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#9a3412',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-    marginRight: 12,
-  },
-  deliveryCodeCopyButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#f97316',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   cardNameSection: {
     marginBottom: 16,

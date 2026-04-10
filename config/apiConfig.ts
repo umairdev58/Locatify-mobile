@@ -1,16 +1,33 @@
 import { Platform } from 'react-native';
 
-// Deployed backend URL (AWS EC2 instance)
-const DEPLOYED_API_BASE_URL = 'http://13.203.161.203:5000/api';
-const azure_api_base_url = 'https://locatify-api.azurewebsites.net/api';
-// Local development URLs
-// const LOCAL_API_BASE_URL =
-//   Platform.OS === 'android' ? 'http://192.168.10.60:8000/api' : 'http://localhost:8000/api';
-const LOCAL_API_BASE_URL ='http://192.168.10.87:8000/api';
-// Use environment variable if set, otherwise use deployed URL by default
-// // To use local development, set EXPO_PUBLIC_API_BASE_URL in your .env file
-// export const API_BASE_URL =azure_api_base_url ??
-//  LOCAL_API_BASE_URL ?? DEPLOYED_API_BASE_URL  ;
+/**
+ * API origin for all fetch calls. Resolution order:
+ * 1. EXPO_PUBLIC_API_BASE_URL — set in `.env` (local) or EAS / Expo dashboard (preview & production).
+ * 2. __DEV__ — emulator-friendly localhost when unset (Android emulator uses 10.0.2.2).
+ * 3. Release default — HTTPS; override with EXPO_PUBLIC_API_BASE_URL for your canonical API host.
+ */
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '');
+}
 
-export const API_BASE_URL =
- LOCAL_API_BASE_URL ?? azure_api_base_url ?? DEPLOYED_API_BASE_URL  ;
+const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+
+const DEFAULT_PRODUCTION_API_BASE_URL =
+  'https://api.locatify.org/api';
+
+function localDevBaseUrl(): string {
+  const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+  return `http://${host}:8000/api`;
+}
+
+function resolveApiBaseUrl(): string {
+  if (fromEnv) {
+    return normalizeBaseUrl(fromEnv);
+  }
+  if (__DEV__) {
+    return localDevBaseUrl();
+  }
+  return DEFAULT_PRODUCTION_API_BASE_URL;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();

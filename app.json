@@ -9,6 +9,7 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -24,6 +25,8 @@
       }
     },
     "android": {
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "versionCode": 1,
       "label": "Locatify",
       "package": "com.locatify.app",
       "adaptiveIcon": {
@@ -39,6 +42,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withAdiFile",
       "expo-router",
       [
         "expo-splash-screen",

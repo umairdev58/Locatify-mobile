@@ -260,7 +260,9 @@ function TabHeaderRight({ routeName }: { routeName: string }) {
       ? 'Search saved addresses'
       : routeName === 'two'
         ? 'Search pinned places'
-        : 'Search';
+        : routeName === 'shared'
+          ? 'Search shared addresses'
+          : 'Search';
 
   const triggerHeaderLayoutAnimation = () => {
     LayoutAnimation.configureNext({
@@ -479,6 +481,16 @@ export default function TabLayout() {
               title: 'Pin Loc',
               tabBarIcon: ({ color, focused }) => (
                 <TabBarIcon name="map-pin" color={color} focused={focused} />
+              ),
+            }}
+          />
+
+          <Tabs.Screen
+            name="shared"
+            options={{
+              title: 'Shared address',
+              tabBarIcon: ({ color, focused }) => (
+                <TabBarIcon name="share-alt" color={color} focused={focused} />
               ),
             }}
           />

@@ -26,7 +26,8 @@ async function handleAuthResponse(response: Response): Promise<LoginResponse> {
   const data = (await response.json().catch(() => ({}))) as LoginResponse & { message?: string };
 
   if (!response.ok) {
-    throw new Error(data?.message ?? 'Unable to complete request');
+    console.log('data --->', data);
+    throw new Error(data?.message ?? 'Unable to complete request.');
   }
 
   return data;

@@ -17,6 +17,12 @@ export type SaveAddressPayload = {
   addressId?: string;
 };
 
+export type SharedFromUserPreview = {
+  _id: string;
+  name: string;
+  email: string;
+};
+
 export type AddressResponse = {
   _id: string;
   fullTextAddress: string;
@@ -26,6 +32,8 @@ export type AddressResponse = {
   location: LocationPayload;
   houseImages: string[];
   publicCode: string;
+  /** Present when this card was saved from another user's share */
+  sharedFromUser?: SharedFromUserPreview | null;
 };
 
 const requireToken = (token?: string) => {
