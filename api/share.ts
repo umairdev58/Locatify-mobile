@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/api/authenticatedFetch';
 import { API_BASE_URL } from '@/config/apiConfig';
 import { getAuthToken } from '@/store/session';
 import type { AddressResponse } from '@/api/address';
@@ -32,10 +33,9 @@ export async function createAddressShare(
   token?: string,
 ): Promise<AddressShareResponse> {
   const authToken = requireToken(token);
-  const response = await fetch(`${API_BASE_URL}/share`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/share`, authToken, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${authToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ addressId, recipientEmail: recipientEmail.trim() }),
@@ -49,9 +49,7 @@ export async function createAddressShare(
 
 export async function getIncomingShares(token?: string): Promise<AddressShareResponse[]> {
   const authToken = requireToken(token);
-  const response = await fetch(`${API_BASE_URL}/share/incoming`, {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
+  const response = await authenticatedFetch(`${API_BASE_URL}/share/incoming`, authToken, {});
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(data?.message ?? 'Unable to load invitations');
@@ -61,9 +59,7 @@ export async function getIncomingShares(token?: string): Promise<AddressShareRes
 
 export async function getOutgoingShares(token?: string): Promise<AddressShareResponse[]> {
   const authToken = requireToken(token);
-  const response = await fetch(`${API_BASE_URL}/share/outgoing`, {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
+  const response = await authenticatedFetch(`${API_BASE_URL}/share/outgoing`, authToken, {});
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(data?.message ?? 'Unable to load sent shares');
@@ -73,9 +69,8 @@ export async function getOutgoingShares(token?: string): Promise<AddressShareRes
 
 export async function acceptShare(shareId: string, token?: string) {
   const authToken = requireToken(token);
-  const response = await fetch(`${API_BASE_URL}/share/${shareId}/accept`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/share/${shareId}/accept`, authToken, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${authToken}` },
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
@@ -86,9 +81,8 @@ export async function acceptShare(shareId: string, token?: string) {
 
 export async function declineShare(shareId: string, token?: string) {
   const authToken = requireToken(token);
-  const response = await fetch(`${API_BASE_URL}/share/${shareId}/decline`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/share/${shareId}/decline`, authToken, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${authToken}` },
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {

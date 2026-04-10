@@ -1,3 +1,9 @@
+import type { LoginResponse } from '@/api/auth';
+import {
+  clearPersistedAuthSession,
+  persistAuthSession,
+} from '@/lib/authStorage';
+
 let cachedToken: string | null = null;
 let cachedAccountType: 'user' | 'delivery' | null = null;
 let cachedUserProfile: {
@@ -6,6 +12,24 @@ let cachedUserProfile: {
   email: string;
   accountType: 'user' | 'delivery';
 } | null = null;
+
+/** Call after email/password, Google, or register success — persists securely for next app launch. */
+export function applyAuthSession(data: LoginResponse) {
+  setAuthToken(data.token);
+  setUserProfile(data.user);
+  void persistAuthSession(data);
+}
+
+/** Restore session from secure storage on cold start (does not re-write storage). */
+export function hydrateSessionFromStorage(data: LoginResponse) {
+  setAuthToken(data.token);
+  setUserProfile(data.user);
+}
+
+export async function clearAuthSession() {
+  setAuthToken(null);
+  await clearPersistedAuthSession();
+}
 
 export function setAuthToken(token: string | null) {
   cachedToken = token;

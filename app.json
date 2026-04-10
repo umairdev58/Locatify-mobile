@@ -9,7 +9,9 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -21,11 +23,18 @@
       "infoPlist": {
         "CFBundleDisplayName": "Locatify",
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["comgooglemaps", "maps", "googlechromes"]
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "maps",
+          "googlechromes"
+        ]
       }
     },
     "android": {
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "versionCode": 1,
       "label": "Locatify",
       "package": "com.locatify.app",
@@ -52,7 +61,8 @@
           "backgroundColor": "#c5d8e8",
           "imageWidth": 260
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

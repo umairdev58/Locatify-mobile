@@ -21,7 +21,7 @@ import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { googleLogin, loginUser } from '@/api/auth';
-import { setAccountType, setAuthToken, setUserProfile } from '@/store/session';
+import { applyAuthSession, getAccountType, getAuthToken } from '@/store/session';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -99,9 +99,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { token, user } = await googleLogin(idToken);
-      setAuthToken(token);
-      setAccountType(user.accountType);
-      setUserProfile(user);
+      applyAuthSession({ token, user });
       router.replace(user.accountType === 'delivery' ? '/delivery-search' : '/(tabs)');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to login with Google';
@@ -110,6 +108,13 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (getAuthToken()) {
+      const type = getAccountType();
+      router.replace(type === 'delivery' ? '/delivery-search' : '/(tabs)');
+    }
+  }, [router]);
 
   useEffect(() => {
     if (googleResponse?.type !== 'success') return;
@@ -138,9 +143,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { token, user } = await loginUser({ email, password });
-      setAuthToken(token);
-      setAccountType(user.accountType);
-      setUserProfile(user);
+      applyAuthSession({ token, user });
       const destination = user.accountType === 'delivery' ? '/delivery-search' : '/(tabs)';
       router.replace(destination);
     } catch (error) {

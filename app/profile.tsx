@@ -6,7 +6,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import AccountGuard from '@/components/AccountGuard';
 import { getMyAddresses } from '@/api/address';
 import { getMyPlaces } from '@/api/place';
-import { getUserProfile, setAccountType, setAuthToken, setUserProfile } from '@/store/session';
+import { clearAuthSession, getUserProfile } from '@/store/session';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -43,10 +43,7 @@ export default function ProfileScreen() {
   useFocusEffect(refreshStats);
 
   const handleLogout = () => {
-    setAuthToken(null);
-    setAccountType(null);
-    setUserProfile(null);
-    router.replace('/login');
+    void clearAuthSession().then(() => router.replace('/login'));
   };
 
   return (

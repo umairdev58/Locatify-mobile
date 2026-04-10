@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/api/authenticatedFetch';
 import { API_BASE_URL } from '@/config/apiConfig';
 import { getAuthToken } from '@/store/session';
 
@@ -33,10 +34,9 @@ const requireToken = (token?: string) => {
 export async function savePlace(payload: SavePlacePayload, token?: string): Promise<PlaceResponse> {
   const authToken = requireToken(token);
   try {
-    const response = await fetch(`${API_BASE_URL}/place/save`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/place/save`, authToken, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -65,11 +65,7 @@ export async function getMyPlaces(token?: string): Promise<PlaceResponse[] | nul
     return null;
   }
 
-  const response = await fetch(`${API_BASE_URL}/place/me`, {
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
+  const response = await authenticatedFetch(`${API_BASE_URL}/place/me`, authToken, {});
 
   if (response.status === 404) {
     return [];
@@ -86,10 +82,9 @@ export async function getMyPlaces(token?: string): Promise<PlaceResponse[] | nul
 export async function updatePlace(payload: SavePlacePayload, token?: string): Promise<PlaceResponse> {
   const authToken = requireToken(token);
   try {
-    const response = await fetch(`${API_BASE_URL}/place/update`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/place/update`, authToken, {
       method: 'PUT',
       headers: {
-        Authorization: `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -116,11 +111,8 @@ export async function updatePlace(payload: SavePlacePayload, token?: string): Pr
 export async function deletePlace(placeId: string, token?: string): Promise<void> {
   const authToken = requireToken(token);
   try {
-    const response = await fetch(`${API_BASE_URL}/place/${placeId}`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/place/${placeId}`, authToken, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-      },
     });
 
     if (!response.ok) {

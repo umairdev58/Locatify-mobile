@@ -20,6 +20,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import AccountGuard from '@/components/AccountGuard';
+import { clearAuthSession } from '@/store/session';
 import { TabSearchProvider, useTabSearch } from '@/components/TabSearchContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -391,7 +392,7 @@ function TabHeaderRight({ routeName }: { routeName: string }) {
               style={({ pressed }) => [headerStyles.dropdownItem, pressed && { backgroundColor: '#fef2f2' }]}
               onPress={() => {
                 setMenuOpen(false);
-                router.replace('/login');
+                void clearAuthSession().then(() => router.replace('/login'));
               }}>
               <View style={headerStyles.dropdownItemIconSlot}>
                 <FontAwesome name="sign-out" size={16} color="#ef4444" />

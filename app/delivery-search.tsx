@@ -5,6 +5,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AccountGuard from '@/components/AccountGuard';
+import { clearAuthSession } from '@/store/session';
 import { getAddressByCode } from '@/api/address';
 import { openNavigationMaps } from '@/utils/openNavigationMaps';
 
@@ -57,7 +58,7 @@ export default function DeliverySearchScreen() {
           <View style={styles.headerIcons}>
             <Pressable
               style={styles.headerIconButton}
-              onPress={() => router.replace('/login')}
+              onPress={() => void clearAuthSession().then(() => router.replace('/login'))}
               accessibilityRole="button"
               accessibilityLabel="Sign out">
               <FontAwesome name="sign-out" size={16} color="#b91c1c" />

@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/api/authenticatedFetch';
 import { API_BASE_URL } from '@/config/apiConfig';
 import { getAuthToken } from '@/store/session';
 import type { ImageAsset } from '@/types/image';
@@ -69,10 +70,9 @@ const sendJsonPayload = async (
 ): Promise<AddressResponse> => {
   const authToken = requireToken(token);
   try {
-    const response = await fetch(url, {
+    const response = await authenticatedFetch(url, authToken, {
       method,
       headers: {
-        Authorization: `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(buildPayload(payload)),
@@ -101,11 +101,7 @@ export async function getMyAddresses(token?: string): Promise<AddressResponse[] 
     return null;
   }
 
-  const response = await fetch(`${API_BASE_URL}/address/me`, {
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
+  const response = await authenticatedFetch(`${API_BASE_URL}/address/me`, authToken, {});
 
   if (response.status === 404) {
     return [];
@@ -144,11 +140,8 @@ export async function updateAddress(addressId: string, payload: SaveAddressPaylo
 export async function deleteAddress(addressId: string, token?: string): Promise<void> {
   const authToken = requireToken(token);
   try {
-    const response = await fetch(`${API_BASE_URL}/address/${addressId}`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/address/${addressId}`, authToken, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-      },
     });
 
     if (!response.ok) {

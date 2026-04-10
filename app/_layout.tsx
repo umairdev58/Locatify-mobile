@@ -3,12 +3,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
+import { loadPersistedAuthSession } from '@/lib/authStorage';
 import { useColorScheme } from '@/components/useColorScheme';
 import { ToastProvider } from '@/components/ToastProvider';
+import { hydrateSessionFromStorage } from '@/store/session';
 
 /** Must match app.json `splash.backgroundColor` and expo-splash-screen plugin */
 const SPLASH_BACKGROUND = '#c5d8e8';
@@ -20,7 +22,7 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: 'login',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -34,6 +36,7 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+  const [authReady, setAuthReady] = useState(false);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -41,12 +44,28 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
+    let cancelled = false;
+    void (async () => {
+      const saved = await loadPersistedAuthSession();
+      if (!cancelled && saved) {
+        hydrateSessionFromStorage(saved);
+      }
+      if (!cancelled) {
+        setAuthReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loaded && authReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, authReady]);
 
-  if (!loaded) {
+  if (!loaded || !authReady) {
     /* Same look as native splash: Expo Go (SDK 52+) only shows app icon natively, so we paint our logo here once JS runs. */
     return (
       <View style={splashStyles.container}>
@@ -82,10 +101,7 @@ function RootLayoutNav() {
   return (
     <ToastProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack
-          screenOptions={{ headerShown: false }}
-          initialRouteName="login">
-        </Stack>
+        <Stack screenOptions={{ headerShown: false }} initialRouteName="index" />
       </ThemeProvider>
     </ToastProvider>
   );

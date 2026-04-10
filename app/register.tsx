@@ -180,11 +180,11 @@
 // });
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View, Text } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { registerUser, RegisterPayload } from '@/api/auth';
-import { setAccountType, setAuthToken, setUserProfile } from '@/store/session';
+import { applyAuthSession, getAccountType, getAuthToken } from '@/store/session';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -201,6 +201,13 @@ export default function RegisterScreen() {
       ? 'Create your delivery rider account'
       : 'Start saving beautiful address cards';
 
+  useEffect(() => {
+    if (getAuthToken()) {
+      const type = getAccountType();
+      router.replace(type === 'delivery' ? '/delivery-search' : '/(tabs)');
+    }
+  }, [router]);
+
   const handleRegister = async () => {
     if (!name || !email || !password) {
       setErrorMessage('Complete every field.');
@@ -210,9 +217,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const { token, user } = await registerUser({ name, email, password, accountType });
-      setAuthToken(token);
-      setAccountType(user.accountType);
-      setUserProfile(user);
+      applyAuthSession({ token, user });
       const destination = user.accountType === 'delivery' ? '/delivery-search' : '/(tabs)';
       router.replace(destination);
     } catch (error) {
